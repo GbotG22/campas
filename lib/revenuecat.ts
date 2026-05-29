@@ -49,6 +49,18 @@ export type EntitlementKey = typeof PREMIUM_ENTITLEMENT | typeof AI_PLUS_ENTITLE
 export const IS_EXPO_GO =
   Constants.executionEnvironment === 'storeClient';
 
+/**
+ * RevenueCat API キーが有効に設定されているかどうか
+ *
+ * - true  → 本番キーあり: RevenueCat で課金判定を行う
+ * - false → 未設定 / プレースホルダー: AsyncStorage の dev フラグにフォールバック
+ */
+const _iosKey     = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS     ?? '';
+const _androidKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? '';
+export const IS_REVENUECAT_CONFIGURED =
+  (!_iosKey.startsWith('your-')     && _iosKey.length     > 0) ||
+  (!_androidKey.startsWith('your-') && _androidKey.length > 0);
+
 // ── ネイティブモジュールの遅延ロード ──────────────────────────
 
 /**

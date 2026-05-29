@@ -29,6 +29,7 @@ import {
   purchasePackage  as rcPurchasePackage,
   restorePurchases as rcRestorePurchases,
   IS_EXPO_GO,
+  IS_REVENUECAT_CONFIGURED,
   type EntitlementKey,
 } from '@/lib/revenuecat';
 
@@ -83,7 +84,8 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
 
   // ── ストア生成直後に非同期でローカルフラグをチェック ──────
   (async () => {
-    if (IS_EXPO_GO) {
+    // Expo Go、または RevenueCat 未構成時は AsyncStorage の dev フラグを使用
+    if (IS_EXPO_GO || !IS_REVENUECAT_CONFIGURED) {
       try {
         const [premVal, aiVal] = await Promise.all([
           AsyncStorage.getItem(DEV_PREMIUM_KEY),
@@ -97,7 +99,7 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
         return;
       } catch { /* ignore */ }
     }
-    // Dev Build / 本番: isLoading だけ解除（RevenueCat は refresh() で確認）
+    // RevenueCat 構成済み: isLoading だけ解除（RevenueCat は refresh() で確認）
     set({ isLoading: false });
   })();
 
@@ -112,7 +114,7 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
     refresh: async () => {
       set({ isLoading: true });
 
-      if (IS_EXPO_GO) {
+      if (IS_EXPO_GO || !IS_REVENUECAT_CONFIGURED) {
         try {
           const [premVal, aiVal] = await Promise.all([
             AsyncStorage.getItem(DEV_PREMIUM_KEY),
@@ -129,7 +131,7 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
         return;
       }
 
-      // Dev Build / 本番: RevenueCat で両エンタイトルメントを確認
+      // RevenueCat 構成済み: RevenueCat で両エンタイトルメントを確認
       try {
         const { isPremium, isAiPlus } = await checkEntitlements();
         set({ isPremium, isAiPlus, isLoading: false });
@@ -142,7 +144,7 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
     // purchase
     // ────────────────────────────────────────────────────────
     purchase: async (pkg, entitlement) => {
-      if (IS_EXPO_GO || pkg === null) {
+      if (IS_EXPO_GO || !IS_REVENUECAT_CONFIGURED || pkg === null) {
         // Expo Go / フォールバック: 対応する AsyncStorage フラグを立てる
         try {
           const key = entitlement === 'ai_plus' ? DEV_AI_PLUS_KEY : DEV_PREMIUM_KEY;
@@ -175,7 +177,7 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
     // restore
     // ────────────────────────────────────────────────────────
     restore: async () => {
-      if (IS_EXPO_GO) {
+      if (IS_EXPO_GO || !IS_REVENUECAT_CONFIGURED) {
         try {
           const [premVal, aiVal] = await Promise.all([
             AsyncStorage.getItem(DEV_PREMIUM_KEY),
