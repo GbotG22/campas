@@ -1,56 +1,63 @@
 /**
- * RevenueCat ラッパー
+ * RevenueCat ラッパー（2 entitlement 版）
+ * ─────────────────────────────────────────────────────────────
  *
- * react-native-purchases はネイティブモジュールのため Expo Go では動作しない。
- * __DEV__ (Expo Go) のときはすべて no-op / null を返し、
- * 本番ビルド (EAS Build) のときだけ実際の購入処理を行う。
+ * ■ Entitlement 設計
+ *   RevenueCat ダッシュボードで以下の2つを作成:
+ *     premium  → 買い切り（Non-consumable）
+ *     ai_plus  → 月額サブスクリプション（Auto-renewable）
  *
- * ── RevenueCat ダッシュボード設定 ──────────────────────────────
- *  Entitlements:
- *    timetable / assignments / expenses
+ * ■ 実行環境の判定
+ *   expo-constants の executionEnvironment を使用:
+ *     'storeClient' → Expo Go     → 課金機能を無効化
+ *     'bare'        → Dev Build   → RevenueCat を動作させる
+ *     'standalone'  → 本番ビルド  → RevenueCat を動作させる
  *
- *  Products (App Store Connect / Play Store で先に作成):
- *    campas_all_monthly        ¥500/月  → timetable + assignments + expenses
- *    campas_timetable_monthly  ¥100/月  → timetable
- *    campas_assignments_monthly¥100/月  → assignments
- *    campas_expenses_monthly   ¥100/月  → expenses
+ * ■ Expo Go での動作
+ *   - configure / purchase / restore はすべて no-op
+ *   - IS_EXPO_GO フラグを export → UI側で「Dev Build限定」表示に使用
  *
- *  Offering (identifier: default):
- *    Package identifier → Product
- *    all_monthly        → campas_all_monthly
- *    timetable_monthly  → campas_timetable_monthly
- *    assignments_monthly→ campas_assignments_monthly
- *    expenses_monthly   → campas_expenses_monthly
- * ──────────────────────────────────────────────────────────────
+ * ■ セットアップ手順（Dev Build 準備後に実施）
+ *   1. https://app.revenuecat.com でプロジェクト作成
+ *   2. Entitlement: "premium" と "ai_plus" を作成
+ *   3. Products を App Store Connect で作成 → RC に登録
+ *      - campas_premium          (Non-consumable, ¥500)
+ *      - campas_ai_plus_monthly  (Auto-renewable, ¥120/月)
+ *   4. .env.local に EXPO_PUBLIC_REVENUECAT_API_KEY_IOS=appl_xxx を設定
+ * ─────────────────────────────────────────────────────────────
  */
 
-// 型のみのインポート（ランタイムには影響なし）
+import Constants from 'expo-constants';
 import type { CustomerInfo, PurchasesOfferings, PurchasesPackage } from 'react-native-purchases';
 
 // ── 定数 ──────────────────────────────────────────────────────
 
-export const ENTITLEMENTS = {
-  TIMETABLE:   'timetable',
-  ASSIGNMENTS: 'assignments',
-  EXPENSES:    'expenses',
-} as const;
+/** 買い切り Premium のエンタイトルメント識別子 */
+export const PREMIUM_ENTITLEMENT  = 'premium'  as const;
 
-export type Entitlement = (typeof ENTITLEMENTS)[keyof typeof ENTITLEMENTS];
+/** 月額 AI Plus のエンタイトルメント識別子 */
+export const AI_PLUS_ENTITLEMENT  = 'ai_plus'  as const;
 
-/** RevenueCat ダッシュボードの Package identifier と一致させること */
-export const RC_PACKAGE_IDS = {
-  ALL:         'all_monthly',
-  TIMETABLE:   'timetable_monthly',
-  ASSIGNMENTS: 'assignments_monthly',
-  EXPENSES:    'expenses_monthly',
-} as const;
+export type EntitlementKey = typeof PREMIUM_ENTITLEMENT | typeof AI_PLUS_ENTITLEMENT;
 
-export type FeaturePackageId = 'timetable' | 'assignments' | 'expenses';
+/**
+ * 現在の実行環境が Expo Go かどうか
+ *
+ * - true  → Expo Go: 課金機能を UI 側で無効化
+ * - false → Dev Build / 本番: RevenueCat を正常動作させる
+ */
+export const IS_EXPO_GO =
+  Constants.executionEnvironment === 'storeClient';
 
-// ── 遅延ロード ────────────────────────────────────────────────
+// ── ネイティブモジュールの遅延ロード ──────────────────────────
 
+/**
+ * react-native-purchases のネイティブモジュールを取得する。
+ * Expo Go の場合は null を返す（ネイティブメソッドを呼ばないようにするため）。
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getPurchases(): any | null {
+  if (IS_EXPO_GO) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require('react-native-purchases');
@@ -62,8 +69,16 @@ function getPurchases(): any | null {
 
 // ── 初期化 ────────────────────────────────────────────────────
 
-export async function initRevenueCat(userId: string): Promise<void> {
-  if (__DEV__) return; // Expo Go では完全スキップ
+/**
+ * RevenueCat を初期化してユーザーをログインさせる。
+ *
+ * - Expo Go では no-op（何もしない）
+ * - Dev Build / 本番では configure + logIn を実行
+ * - APIキーが未設定の場合は警告を出して何もしない
+ *
+ * @param userId Supabase の user.id（RevenueCat のユーザーIDとして使用）
+ */
+export async function configureRevenueCat(userId: string): Promise<void> {
   const Purchases = getPurchases();
   if (!Purchases) return;
 
@@ -71,48 +86,79 @@ export async function initRevenueCat(userId: string): Promise<void> {
   const { Platform } = require('react-native');
   const apiKey =
     Platform.OS === 'ios'
-      ? process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS!
-      : process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID!;
+      ? process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS ?? ''
+      : process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? '';
+
+  if (!apiKey || apiKey.startsWith('your-')) {
+    console.warn(
+      '[RevenueCat] APIキーが未設定です。\n' +
+      '.env.local に EXPO_PUBLIC_REVENUECAT_API_KEY_IOS を設定してください。',
+    );
+    return;
+  }
 
   try {
     await Purchases.configure({ apiKey });
     await Purchases.logIn(userId);
-  } catch { /* API キー未設定などは無視 */ }
-}
-
-// ── カスタマー情報 ────────────────────────────────────────────
-
-export async function getCustomerInfo(): Promise<CustomerInfo | null> {
-  if (__DEV__) return null;
-  const Purchases = getPurchases();
-  if (!Purchases) return null;
-  try {
-    return await Purchases.getCustomerInfo();
-  } catch {
-    return null;
+  } catch (e) {
+    console.warn('[RevenueCat] 初期化に失敗しました:', e);
   }
 }
 
-/** CustomerInfo から各機能の解除状態を取り出す */
-export function entitlementsFromCustomerInfo(info: CustomerInfo) {
-  const active = info.entitlements.active;
+// ── エンタイトルメントチェック ──────────────────────────────
+
+/**
+ * 現在のユーザーが持つ全エンタイトルメントを確認する。
+ * Expo Go / 取得失敗時は { isPremium: false, isAiPlus: false } を返す。
+ */
+export async function checkEntitlements(): Promise<{ isPremium: boolean; isAiPlus: boolean }> {
+  const Purchases = getPurchases();
+  if (!Purchases) return { isPremium: false, isAiPlus: false };
+  try {
+    const info: CustomerInfo = await Purchases.getCustomerInfo();
+    return entitlementsFromCustomerInfo(info);
+  } catch {
+    return { isPremium: false, isAiPlus: false };
+  }
+}
+
+/**
+ * 後方互換：premium エンタイトルメントのみチェックする。
+ * 新規コードでは checkEntitlements() を使うこと。
+ */
+export async function checkPremium(): Promise<boolean> {
+  const { isPremium } = await checkEntitlements();
+  return isPremium;
+}
+
+/**
+ * CustomerInfo オブジェクトから両エンタイトルメントのフラグを取り出す。
+ * 購入・復元の直後に使用する。
+ */
+export function entitlementsFromCustomerInfo(
+  info: CustomerInfo,
+): { isPremium: boolean; isAiPlus: boolean } {
   return {
-    timetable:   ENTITLEMENTS.TIMETABLE   in active,
-    assignments: ENTITLEMENTS.ASSIGNMENTS in active,
-    expenses:    ENTITLEMENTS.EXPENSES    in active,
+    isPremium: PREMIUM_ENTITLEMENT in info.entitlements.active,
+    isAiPlus:  AI_PLUS_ENTITLEMENT in info.entitlements.active,
   };
 }
 
-export async function checkEntitlement(entitlement: Entitlement): Promise<boolean> {
-  const info = await getCustomerInfo();
-  if (!info) return false;
-  return entitlement in info.entitlements.active;
+/**
+ * 後方互換：premium フラグのみ取り出す。
+ * 新規コードでは entitlementsFromCustomerInfo() を使うこと。
+ */
+export function isPremiumFromCustomerInfo(info: CustomerInfo): boolean {
+  return PREMIUM_ENTITLEMENT in info.entitlements.active;
 }
 
 // ── オファリング ──────────────────────────────────────────────
 
+/**
+ * RevenueCat のオファリング（商品一覧）を取得する。
+ * Expo Go / 取得失敗時は null を返す。
+ */
 export async function getOfferings(): Promise<PurchasesOfferings | null> {
-  if (__DEV__) return null; // Expo Go では null → UI 側でフォールバック
   const Purchases = getPurchases();
   if (!Purchases) return null;
   try {
@@ -122,35 +168,19 @@ export async function getOfferings(): Promise<PurchasesOfferings | null> {
   }
 }
 
-/**
- * 現在の Offering からパッケージを取得する便利関数。
- * feature: 'timetable' | 'assignments' | 'expenses'
- * planType: 'all' | 'single'
- */
-export async function findPackage(
-  feature: FeaturePackageId,
-  planType: 'all' | 'single',
-): Promise<PurchasesPackage | null> {
-  const offerings = await getOfferings();
-  if (!offerings?.current) return null;
-
-  const pkgId = planType === 'all'
-    ? RC_PACKAGE_IDS.ALL
-    : RC_PACKAGE_IDS[feature.toUpperCase() as keyof typeof RC_PACKAGE_IDS];
-
-  return offerings.current.availablePackages.find(p => p.identifier === pkgId) ?? null;
-}
-
 // ── 購入 ──────────────────────────────────────────────────────
 
 /**
  * パッケージを購入する。
+ *
  * @returns
  *   - CustomerInfo: 購入成功
  *   - null: ユーザーがキャンセル（エラーアラート不要）
- * @throws 購入失敗時（通信エラー等）
+ * @throws 購入失敗時（通信エラー等）はそのまま throw
  */
-export async function purchasePackage(pkg: PurchasesPackage): Promise<CustomerInfo | null> {
+export async function purchasePackage(
+  pkg: PurchasesPackage,
+): Promise<CustomerInfo | null> {
   const Purchases = getPurchases();
   if (!Purchases) return null;
   try {
@@ -158,7 +188,7 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<CustomerIn
     return customerInfo;
   } catch (e: unknown) {
     const err = e as { userCancelled?: boolean };
-    if (err.userCancelled) return null; // キャンセルはエラー扱いしない
+    if (err.userCancelled) return null;
     throw e;
   }
 }
@@ -166,11 +196,10 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<CustomerIn
 // ── 復元 ──────────────────────────────────────────────────────
 
 /**
- * 過去の購入を復元する。
- * @returns CustomerInfo（復元済み）or null（失敗・Expo Go）
+ * 過去の購入を復元する（App Store 審査要件）。
+ * Expo Go / 失敗時は null を返す。
  */
 export async function restorePurchases(): Promise<CustomerInfo | null> {
-  if (__DEV__) return null;
   const Purchases = getPurchases();
   if (!Purchases) return null;
   try {

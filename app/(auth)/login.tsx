@@ -9,26 +9,63 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Link, Redirect } from 'expo-router';
+import { Link, Redirect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth.store';
+import { COLORS } from '@/constants/theme';
 
+// ── Supabase エラーメッセージを日本語に変換 ────────────────────
+function toJapaneseLoginError(message: string): string {
+  const m = message.toLowerCase();
+
+  if (m.includes('invalid login credentials') || m.includes('invalid email or password')) {
+    return 'メールアドレスまたはパスワードが正しくありません。';
+  }
+  if (m.includes('email not confirmed')) {
+    return 'メールアドレスが確認されていません。確認メールをご確認ください。';
+  }
+  if (m.includes('too many requests') || m.includes('rate limit')) {
+    return 'ログイン試行回数が多すぎます。\nしばらくしてからお試しください。';
+  }
+  if (m.includes('user not found') || m.includes('no user found')) {
+    return 'このメールアドレスは登録されていません。';
+  }
+  if (m.includes('network') || m.includes('fetch') || m.includes('failed to fetch')) {
+    return 'ネットワークエラーが発生しました。\nインターネット接続をご確認ください。';
+  }
+  if (m.includes('account locked') || m.includes('blocked')) {
+    return 'アカウントがロックされています。\nしばらくしてからお試しください。';
+  }
+  // 上記に該当しない場合は汎用メッセージ
+  return 'ログインに失敗しました。\nもう一度お試しください。';
+}
+
+// ────────────────────────────────────────────────────────────
 export default function LoginScreen() {
   const { session } = useAuthStore();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email,     setEmail]     = useState('');
+  const [password,  setPassword]  = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   if (session) return <Redirect href="/(tabs)" />;
 
   async function handleLogin() {
-    if (!email || !password) return;
+    if (!email.trim() || !password) {
+      Alert.alert('入力エラー', 'メールアドレスとパスワードを入力してください。');
+      return;
+    }
     setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     setIsLoading(false);
-    if (error) Alert.alert('ログインエラー', error.message);
+
+    if (error) {
+      Alert.alert('ログインエラー', toJapaneseLoginError(error.message));
+    }
   }
 
   return (
@@ -47,6 +84,8 @@ export default function LoginScreen() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          autoComplete="email"
+          returnKeyType="next"
         />
         <TextInput
           style={styles.input}
@@ -54,6 +93,9 @@ export default function LoginScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          autoComplete="current-password"
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
         />
 
         <TouchableOpacity
@@ -64,6 +106,14 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>
             {isLoading ? 'ログイン中...' : 'ログイン'}
           </Text>
+        </TouchableOpacity>
+
+        {/* パスワードを忘れた場合 */}
+        <TouchableOpacity
+          style={styles.forgotBtn}
+          onPress={() => router.push('/(auth)/forgot-password' as never)}
+        >
+          <Text style={styles.forgotText}>パスワードをお忘れですか？</Text>
         </TouchableOpacity>
 
         <View style={styles.footer}>
@@ -78,29 +128,27 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  inner: { flex: 1, padding: 24, justifyContent: 'center' },
-  logo: { fontSize: 36, fontWeight: '800', color: '#4F46E5', textAlign: 'center', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 40 },
+  container: { flex: 1, backgroundColor: COLORS.white },
+  inner:     { flex: 1, padding: 24, justifyContent: 'center' },
+  logo:      { fontSize: 36, fontWeight: '800', color: COLORS.primary, textAlign: 'center', marginBottom: 8 },
+  subtitle:  { fontSize: 14, color: COLORS.gray500, textAlign: 'center', marginBottom: 40 },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: COLORS.gray200,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     marginBottom: 12,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: COLORS.gray50,
+    color: COLORS.gray900,
   },
-  button: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 10,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
+  button:         { backgroundColor: COLORS.primary, borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24, gap: 4 },
-  footerText: { color: '#6B7280', fontSize: 14 },
-  link: { color: '#4F46E5', fontSize: 14, fontWeight: '600' },
+  buttonText:     { color: COLORS.white, fontWeight: '700', fontSize: 16 },
+  forgotBtn:  { alignItems: 'center', paddingVertical: 12 },
+  forgotText: { color: COLORS.gray500, fontSize: 13, textDecorationLine: 'underline' },
+
+  footer:     { flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 4 },
+  footerText: { color: COLORS.gray500, fontSize: 14 },
+  link:       { color: COLORS.primary, fontSize: 14, fontWeight: '600' },
 });

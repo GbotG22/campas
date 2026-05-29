@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import { supabase } from '@/lib/supabase';
 import {
+  scheduleSubscriptionNotification,
   cancelSubscriptionNotifications,
   rescheduleSubscriptionNotifications,
 } from '@/lib/notifications';
@@ -48,8 +49,8 @@ export const useSubscriptionsStore = create<SubscriptionsState>((set, get) => ({
       isLoading:     false,
     });
 
-    // 通知スケジュール（本番ビルドのみ）
-    if (!__DEV__) {
+    // 通知スケジュール（Expo Goでも動作する・getNotifications() が null の場合は no-op）
+    {
       const threeMonthsAgo = new Date();
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
       const { data: recentExpenses } = await supabase
@@ -73,12 +74,18 @@ export const useSubscriptionsStore = create<SubscriptionsState>((set, get) => ({
       .select()
       .single();
 
+    if (error) {
+      // Expo デバコンソールで確認できるよう詳細を出力
+      console.error('[addSubscription] DB error:', error.code, error.message, error.details);
+    }
     if (!error && data) {
       const next = [...get().subscriptions, data].sort((a, b) => b.amount - a.amount);
       set({
         subscriptions: next,
         monthlyTotal:  next.reduce((sum, s) => sum + s.amount, 0),
       });
+      // 新規サブスク更新3日前の通知を登録
+      scheduleSubscriptionNotification(data).catch(() => {});
     }
     return error;
   },
@@ -92,6 +99,9 @@ export const useSubscriptionsStore = create<SubscriptionsState>((set, get) => ({
       .select()
       .single();
 
+    if (error) {
+      console.error('[updateSubscription] DB error:', error.code, error.message, error.details);
+    }
     if (!error && data) {
       const next = get().subscriptions
         .map(s => s.id === id ? { ...s, ...data } : s)
@@ -100,6 +110,9 @@ export const useSubscriptionsStore = create<SubscriptionsState>((set, get) => ({
         subscriptions: next,
         monthlyTotal:  next.reduce((sum, s) => sum + s.amount, 0),
       });
+      // 更新日・金額が変わった可能性があるため再スケジュール
+      cancelSubscriptionNotifications(id).catch(() => {});
+      scheduleSubscriptionNotification(data).catch(() => {});
     }
     return error;
   },

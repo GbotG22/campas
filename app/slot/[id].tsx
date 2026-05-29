@@ -378,7 +378,7 @@ export default function SlotDetailScreen() {
           <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
             {/* カラー */}
             <Text style={styles.formLabel}>カラー</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginBottom: 20 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginBottom: 20, paddingVertical: 6 }}>
               {SUBJECT_COLORS.map(c => (
                 <TouchableOpacity key={c} style={[styles.colorDot, { backgroundColor: c }, editColor === c && styles.colorDotSelected]} onPress={() => setEditColor(c)} />
               ))}

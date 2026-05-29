@@ -49,8 +49,8 @@ import { Platform } from 'react-native';
 WebBrowser.maybeCompleteAuthSession();
 
 // ── 実行環境チェック ────────────────────────────────────────────────
-/** true = Expo Go で実行中 */
-const IS_EXPO_GO =
+/** true = Expo Go で実行中（Dev Build / 本番ビルドでは false） */
+export const IS_EXPO_GO =
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // ── AsyncStorage キー ──────────────────────────────────────────────

@@ -6,9 +6,9 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
-import { COLORS, DAY_LABELS, SUBJECT_COLORS } from '@/constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS, SUBJECT_COLORS } from '@/constants/theme';
 import { ATT_CONFIG, useAttendance }           from '@/hooks/useAttendance';
 import { fetchTodayEvents, ClassEvent }        from '@/hooks/useClassEvents';
 import { usePeriodSettings }                   from '@/hooks/usePeriodSettings';
@@ -40,6 +40,13 @@ export default function TimetableScreen() {
   const { slots, isLoading, isOffline, addSlot, deleteSlot, refresh } =
     useTimetable(semesterFilter);
   const { getForDate, getStats, record } = useAttendance();
+
+  // スロット詳細（/slot/[id]）から戻ったとき等、フォーカス取得時に最新データへ更新
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
 
   // ── 日付 ─────────────────────────────────────────────────────
   const today    = useMemo(() => new Date(), []);
@@ -523,121 +530,117 @@ const styles = StyleSheet.create({
   gridScroll: { flex: 1 },
 
   // ヘッダー
-  header:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingTop: 6, paddingBottom: 4 },
+  header:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.sm + 4, paddingTop: SPACING.xs + 2, paddingBottom: SPACING.xs },
   headerLeft:       { flex: 1 },
-  headerRight:      { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerRight:      { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs + 2 },
   title:            { fontSize: 22, fontWeight: '800', color: COLORS.gray900 },
-  subtitle:         { fontSize: 10, color: COLORS.gray400, marginTop: 1 },
-  offlineBadge:     { backgroundColor: COLORS.warningLight, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  subtitle:         { fontSize: 11, color: COLORS.gray400, marginTop: 2 },
+  offlineBadge:     { backgroundColor: COLORS.warningLight, borderRadius: RADIUS.sm, paddingHorizontal: SPACING.sm, paddingVertical: 3 },
   offlineBadgeText: { fontSize: 11, fontWeight: '700', color: COLORS.warning },
-  settingsBtn:      { padding: 4 },
+  settingsBtn:      { padding: SPACING.xs },
   settingsIcon:     { fontSize: 20 },
 
   // 学期バー
-  semesterBar:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingBottom: 6 },
-  semesterArrow:      { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  semesterArrowText:  { fontSize: 22, color: COLORS.primary, fontWeight: '700' },
-  semesterName:       { flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
-  semesterNameText:   { fontSize: 14, fontWeight: '700', color: COLORS.gray900 },
-  semesterSetupHint:  { fontSize: 12, color: COLORS.primary },
+  semesterBar:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: SPACING.sm + 4, paddingBottom: SPACING.xs + 2 },
+  semesterArrow:     { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  semesterArrowText: { fontSize: 22, color: COLORS.primary, fontWeight: '700' },
+  semesterName:      { flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  semesterNameText:  { fontSize: 14, fontWeight: '700', color: COLORS.gray900 },
+  semesterSetupHint: { fontSize: 12, color: COLORS.primary },
 
   // グリッド
-  grid: { paddingHorizontal: 6, paddingBottom: 16 },
+  grid: { paddingHorizontal: SPACING.xs + 2, paddingBottom: SPACING.md },
   row:  { flexDirection: 'row', marginBottom: 2 },
 
   // 曜日ヘッダー
-  dayHeader:       { alignItems: 'center', paddingVertical: 5 },
+  dayHeader:       { alignItems: 'center', paddingVertical: 6 },
   dayHeaderText:   { fontSize: 13, fontWeight: '700', color: COLORS.gray600 },
-  todayHeader:     { backgroundColor: COLORS.primary + '18', borderRadius: 8 },
+  todayHeader:     { backgroundColor: COLORS.primary + '18', borderRadius: RADIUS.sm },
   todayHeaderText: { color: COLORS.primary },
 
-  // 時限ラベル
+  // 時限ラベル（時刻も読めるサイズに）
   periodLabel: { justifyContent: 'center', alignItems: 'center', paddingVertical: 2 },
   periodNum:   { fontSize: 11, fontWeight: '700', color: COLORS.gray600 },
-  periodTime:  { fontSize: 9,  color: COLORS.gray400, marginTop: 1 },
+  periodTime:  { fontSize: 10, color: COLORS.gray400, marginTop: 1 },
 
   // セル
-  cell:      { marginHorizontal: 1, borderRadius: 6, padding: 4, borderWidth: 1, borderColor: COLORS.gray200, position: 'relative' },
+  cell:      { marginHorizontal: 1, borderRadius: RADIUS.sm, padding: 5, borderWidth: 1, borderColor: COLORS.gray200, position: 'relative' },
   emptyCell: { backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   todayCell: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary + '40' },
-  addIcon:   { fontSize: 18, color: COLORS.gray200 },
+  addIcon:   { fontSize: 20, color: COLORS.gray300 },
 
-  // セル内テキスト
-  cellSubject: { fontSize: 10, fontWeight: '700', lineHeight: 13 },
-  cellRoom:    { fontSize: 8,  color: COLORS.gray400, marginTop: 1 },
-  cellTeacher: { fontSize: 8,  color: COLORS.gray400 },
+  // セル内テキスト（視認性向上）
+  cellSubject: { fontSize: 11, fontWeight: '700', lineHeight: 14 },
+  cellRoom:    { fontSize: 9,  color: COLORS.gray500, marginTop: 2 },
+  cellTeacher: { fontSize: 9,  color: COLORS.gray400 },
 
-  // 出席インジケーター
-  attDot:       { position: 'absolute', top: 3, right: 3, width: 6, height: 6, borderRadius: 3 },
-  rateChip:     { marginTop: 2, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, alignSelf: 'flex-start' },
-  rateChipText: { fontSize: 8, fontWeight: '700' },
+  // 出席インジケーター（右上ドット → より目立つサイズ）
+  attDot:       { position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: COLORS.white },
+  rateChip:     { marginTop: 3, borderRadius: RADIUS.sm - 2, paddingHorizontal: 4, paddingVertical: 2, alignSelf: 'flex-start' },
+  rateChipText: { fontSize: 10, fontWeight: '700' },
 
   // 休講・補講バッジ
-  eventBadge:     { position: 'absolute', top: 3, left: 3, width: 14, height: 14, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  eventBadgeText: { fontSize: 7, fontWeight: '900', color: '#fff' },
+  eventBadge:     { position: 'absolute', top: 4, left: 4, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  eventBadgeText: { fontSize: 8, fontWeight: '900', color: '#fff' },
 
   // ボトムシート
   backdrop:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   sheet: {
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16, paddingTop: 8,
+    borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
+    paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.md, paddingTop: SPACING.sm,
   },
-  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.gray200, alignSelf: 'center', marginBottom: 10 },
-  sheetHeader: { paddingHorizontal: 16, marginBottom: 10 },
+  handle:      { width: 36, height: 4, borderRadius: 2, backgroundColor: COLORS.gray200, alignSelf: 'center', marginBottom: SPACING.sm + 2 },
+  sheetHeader: { paddingHorizontal: SPACING.md, marginBottom: SPACING.sm + 2 },
   sheetTitle:  { fontSize: 15, fontWeight: '700', color: COLORS.gray600 },
 
-  // カラーピッカー（1行全表示）
-  colorRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
+  // カラーピッカー
+  colorRow:         { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.sm + 4, paddingVertical: 6 },
   colorDot:         { width: 30, height: 30, borderRadius: 15 },
   colorDotSelected: { borderWidth: 3, borderColor: COLORS.gray900, transform: [{ scale: 1.15 }] },
 
   // フォーム
   mainInput: {
-    borderWidth: 2, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 2, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm + 4, paddingVertical: SPACING.sm + 2,
     fontSize: 16, fontWeight: '600',
-    color: COLORS.gray900, marginBottom: 8,
+    color: COLORS.gray900, marginBottom: SPACING.sm,
   },
-  subRow:   { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  subRow:   { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xs },
   subInput: {
-    borderWidth: 1.5, borderColor: COLORS.gray200, borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 10,
+    borderWidth: 1.5, borderColor: COLORS.gray200, borderRadius: RADIUS.sm + 2,
+    paddingHorizontal: SPACING.sm + 2, paddingVertical: SPACING.sm + 2,
     fontSize: 13, color: COLORS.gray900, backgroundColor: COLORS.gray50,
   },
 
   // 入力補完チップ
   suggestionChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1.5, borderRadius: 16,
-    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1.5, borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm + 2, paddingVertical: 5,
     backgroundColor: COLORS.white,
   },
   suggestionDot:  { width: 8, height: 8, borderRadius: 4 },
   suggestionText: { fontSize: 12, fontWeight: '600', color: COLORS.gray900 },
 
   // 保存ボタン
-  saveBtn:     { marginHorizontal: 16, marginTop: 10, borderRadius: 12, padding: 15, alignItems: 'center' },
+  saveBtn:     { marginHorizontal: SPACING.md, marginTop: SPACING.sm + 2, borderRadius: RADIUS.md, padding: 15, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 
   // コピーモーダル
-  modalContainer:  { flex: 1, backgroundColor: COLORS.white },
-  modalHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
-  modalTitle:      { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
-  modalCancelText: { fontSize: 15, color: COLORS.gray600 },
-  modalSaveText:   { fontSize: 15, fontWeight: '700', color: COLORS.primary },
-  copyHint:        { fontSize: 13, color: COLORS.gray400, marginBottom: 16 },
-  copyHeaderCell:  { alignItems: 'center', paddingVertical: 6 },
-  copyHeaderText:  { fontSize: 13, fontWeight: '700', color: COLORS.gray600 },
-  copyCell:         { marginHorizontal: 1, borderRadius: 6, borderWidth: 1, borderColor: COLORS.gray200, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  modalContainer:   { flex: 1, backgroundColor: COLORS.white },
+  modalHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 6, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  modalTitle:       { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
+  modalCancelText:  { fontSize: 15, color: COLORS.gray600 },
+  modalSaveText:    { fontSize: 15, fontWeight: '700', color: COLORS.primary },
+  copyHint:         { fontSize: 13, color: COLORS.gray400, marginBottom: SPACING.md },
+  copyHeaderCell:   { alignItems: 'center', paddingVertical: 6 },
+  copyHeaderText:   { fontSize: 13, fontWeight: '700', color: COLORS.gray600 },
+  copyCell:         { marginHorizontal: 1, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.gray200, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   copyCellOccupied: { backgroundColor: COLORS.gray100 },
   copyCellSelected: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },
-  copyCellOccText:  { fontSize: 8, color: COLORS.gray400, textAlign: 'center', padding: 2 },
+  copyCellOccText:  { fontSize: 9, color: COLORS.gray400, textAlign: 'center', padding: 2 },
   copyCellSelText:  { fontSize: 16, fontWeight: '800', color: COLORS.primary },
-  copyCellEmptyText:{ fontSize: 16, color: COLORS.gray400 },
+  copyCellEmptyText:{ fontSize: 16, color: COLORS.gray300 },
 });

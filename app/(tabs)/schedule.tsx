@@ -20,8 +20,9 @@ import {
   TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
-import { COLORS } from '@/constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
 import InlineDatePicker from '@/components/InlineDatePicker';
 import InlineTimePicker from '@/components/InlineTimePicker';
 import MonthCalendar, { CalendarMarker } from '@/components/MonthCalendar';
@@ -31,7 +32,10 @@ import { useWorkplaces } from '@/hooks/useWorkplaces';
 import {
   useGoogleCalendar, GCalEvent,
   gCalEventDate, gCalEventTime, gCalEventEndTime,
+  IS_EXPO_GO,
 } from '@/hooks/useGoogleCalendar';
+import { useAI, AIScheduleItem } from '@/hooks/useAI';
+import { usePremium } from '@/hooks/usePremium';
 import type { EventType } from '@/types/database';
 
 const TODAY    = new Date().toISOString().split('T')[0];
@@ -84,8 +88,10 @@ export default function ScheduleScreen() {
     gCalEvents, isConnected: gcalConnected,
     isLoading: gcalLoading, error: gcalError,
     signIn: gcalSignIn, signOut: gcalSignOut,
-    refresh: gcalRefresh, request: gcalRequest,
   } = useGoogleCalendar();
+  const { isAnalyzing, advice, error: aiError, analyze, clear: clearAI } = useAI();
+  const { isPremium, isAiPlus } = usePremium();
+  const [aiModalVisible, setAiModalVisible] = useState(false);
 
   // ── カレンダー ─────────────────────────────────────────────
   const todayDate = new Date();
@@ -221,6 +227,34 @@ export default function ScheduleScreen() {
     setModalVisible(true);
   }
 
+  // AI 分析を起動（AI Plus 限定）
+  function openAI() {
+    // AI Plus 未加入の場合はペイウォールへ
+    if (!isAiPlus) {
+      router.push('/paywall/ai_plus' as never);
+      return;
+    }
+
+    const aiItems: AIScheduleItem[] = allItems
+      .filter(i => i.source !== 'google') // アプリ内予定のみ
+      .map(i => {
+        const cfg = i.type === 'shift'
+          ? { label: 'バイト' }
+          : EVENT_CONFIG[i.type as EventType] ?? { label: 'その他' };
+        return {
+          title:     i.title,
+          typeLabel: cfg.label,
+          date:      i.date,
+          time:      i.time,
+          endTime:   i.endTime,
+          isDone:    i.isDone,
+        };
+      });
+    clearAI();
+    setAiModalVisible(true);
+    analyze(aiItems);
+  }
+
   // 編集モードで開く（Googleイベントは読み取り専用）
   function openEdit(item: ScheduleItem) {
     if (item.source === 'google') {
@@ -266,6 +300,13 @@ export default function ScheduleScreen() {
         Alert.alert('入力エラー', 'バイト先・開始・終了時刻は必須です');
         setSaving(false); return;
       }
+      // 開始時刻 >= 終了時刻チェック（深夜またぎは非対応のため警告）
+      const [sh, sm] = shiftStart.split(':').map(Number);
+      const [eh, em] = shiftEnd.split(':').map(Number);
+      if (sh * 60 + sm >= eh * 60 + em) {
+        Alert.alert('入力エラー', '終了時刻は開始時刻より後にしてください\n（深夜をまたぐシフトは翌日に分けて入力してください）');
+        setSaving(false); return;
+      }
       const wp = workplaces.find(w => w.id === shiftWorkplace);
       const data = {
         workplace_id: shiftWorkplace, date: shiftDate,
@@ -279,6 +320,15 @@ export default function ScheduleScreen() {
       if (!evTitle.trim()) {
         Alert.alert('入力エラー', 'タイトルを入力してください');
         setSaving(false); return;
+      }
+      // 開始・終了両方入力されていて終了が開始以前ならエラー
+      if (evTime && evEndTime) {
+        const [sh, sm] = evTime.split(':').map(Number);
+        const [eh, em] = evEndTime.split(':').map(Number);
+        if (sh * 60 + sm >= eh * 60 + em) {
+          Alert.alert('入力エラー', '終了時刻は開始時刻より後にしてください');
+          setSaving(false); return;
+        }
       }
       const data = {
         event_type: evType, title: evTitle.trim(), start_date: evDate,
@@ -325,39 +375,55 @@ export default function ScheduleScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>予定</Text>
         <View style={styles.headerRight}>
-          {/* Googleカレンダー連携ボタン */}
-          <TouchableOpacity
-            style={[styles.gcalBtn, gcalConnected && styles.gcalBtnActive]}
-            onPress={() => {
-              if (gcalConnected) {
-                // 接続中 → 解除確認
-                Alert.alert(
-                  'Googleカレンダー',
-                  'Googleアカウントとの連携を解除しますか？',
-                  [
-                    { text: 'キャンセル', style: 'cancel' },
-                    { text: '連携解除', style: 'destructive', onPress: gcalSignOut },
-                  ],
-                );
-              } else {
-                // 未接続 → クライアントID チェック（webClientId が最低限必要）
-                if (!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) {
-                  Alert.alert(
-                    '設定が必要です',
-                    '.env.local に EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID を設定してください。\n\nGoogle Cloud Console でウェブ OAuth クライアント ID を作成し、承認済みリダイレクト URI に以下を追加してください：\nhttps://auth.expo.io/@あなたのExpoユーザー名/campas',
-                  );
-                  return;
-                }
-                // iOS でも webClientId フォールバックで動作するためここでは弾かない
-                gcalSignIn();
-              }
-            }}
-            disabled={gcalLoading}
-          >
-            <Text style={[styles.gcalBtnText, gcalConnected && styles.gcalBtnTextActive]}>
-              {gcalLoading ? '…' : gcalConnected ? '🔵 G連携中' : '⬜ G連携'}
-            </Text>
+          {/* AI分析ボタン */}
+          <TouchableOpacity style={styles.aiBtn} onPress={openAI}>
+            <Text style={styles.aiBtnText}>✨ AI分析</Text>
           </TouchableOpacity>
+
+          {/* Googleカレンダー連携ボタン */}
+          {IS_EXPO_GO ? (
+            // Expo Go では機能しないため説明を表示
+            <TouchableOpacity
+              style={styles.gcalBtnDisabled}
+              onPress={() =>
+                Alert.alert(
+                  'Googleカレンダー連携',
+                  '📱 この機能は開発版アプリ（Dev Build）で利用できます。\n\nExpo Go では Google OAuth のリダイレクト制約があるため、現在は使用できません。',
+                  [{ text: 'OK' }],
+                )
+              }
+            >
+              <Text style={styles.gcalBtnDisabledText}>🔒 G連携</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.gcalBtn, gcalConnected && styles.gcalBtnActive]}
+              onPress={() => {
+                if (gcalConnected) {
+                  Alert.alert(
+                    'Googleカレンダー',
+                    'Googleアカウントとの連携を解除しますか？',
+                    [
+                      { text: 'キャンセル', style: 'cancel' },
+                      { text: '連携解除', style: 'destructive', onPress: gcalSignOut },
+                    ],
+                  );
+                } else {
+                  // Premium 未加入の場合はペイウォールへ
+                  if (!isPremium) {
+                    router.push('/paywall/premium' as never);
+                    return;
+                  }
+                  gcalSignIn();
+                }
+              }}
+              disabled={gcalLoading}
+            >
+              <Text style={[styles.gcalBtnText, gcalConnected && styles.gcalBtnTextActive]}>
+                {gcalLoading ? '…' : gcalConnected ? '🔵 G連携中' : '⬜ G連携'}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={styles.addBtn} onPress={() => openAdd()}>
             <Text style={styles.addBtnText}>＋ 追加</Text>
@@ -365,8 +431,8 @@ export default function ScheduleScreen() {
         </View>
       </View>
 
-      {/* Googleカレンダー エラーバナー */}
-      {gcalError && (
+      {/* Googleカレンダー エラーバナー（Dev Build のみ表示） */}
+      {!IS_EXPO_GO && gcalError && (
         <View style={styles.gcalErrorBar}>
           <Text style={styles.gcalErrorText}>⚠️ {gcalError}</Text>
           <TouchableOpacity onPress={gcalSignIn}>
@@ -604,6 +670,70 @@ export default function ScheduleScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* ── AI分析モーダル ── */}
+      <Modal visible={aiModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <View style={{ width: 60 }} />
+            <Text style={styles.modalTitle}>✨ AI予定分析</Text>
+            <TouchableOpacity onPress={() => { setAiModalVisible(false); clearAI(); }}>
+              <Text style={styles.modalCancel}>閉じる</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 20 }}>
+            {isAnalyzing && (
+              <View style={styles.aiLoadingWrap}>
+                <Text style={styles.aiLoadingEmoji}>🤔</Text>
+                <Text style={styles.aiLoadingText}>予定を分析中...</Text>
+                <Text style={styles.aiLoadingNote}>Claude に聞いています</Text>
+              </View>
+            )}
+
+            {!isAnalyzing && advice && (
+              <View style={styles.aiResultWrap}>
+                <View style={styles.aiResultHeader}>
+                  <Text style={styles.aiResultLabel}>✨ AIからのアドバイス</Text>
+                  <TouchableOpacity
+                    style={styles.aiRetryBtn}
+                    onPress={openAI}
+                  >
+                    <Text style={styles.aiRetryText}>再分析</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.aiResultText}>{advice}</Text>
+              </View>
+            )}
+
+            {!isAnalyzing && aiError && (
+              <View style={styles.aiErrorWrap}>
+                <Text style={styles.aiErrorEmoji}>⚠️</Text>
+                <Text style={styles.aiErrorText}>{aiError}</Text>
+                <TouchableOpacity style={styles.aiRetryBtn} onPress={openAI}>
+                  <Text style={styles.aiRetryText}>再試行</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!isAnalyzing && !advice && !aiError && (
+              <View style={styles.aiLoadingWrap}>
+                <Text style={styles.aiLoadingEmoji}>📊</Text>
+                <Text style={styles.aiLoadingText}>分析を開始します...</Text>
+              </View>
+            )}
+
+            <View style={styles.aiNote}>
+              <Text style={styles.aiNoteText}>
+                💡 分析対象: アプリ内の予定（Googleカレンダーを除く）
+              </Text>
+              <Text style={styles.aiNoteText}>
+                🔑 Powered by Anthropic Claude
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -628,22 +758,49 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.gray50 },
 
   // ヘッダー
-  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  headerRight:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingTop: SPACING.sm, paddingBottom: SPACING.xs },
+  headerRight:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   title:        { fontSize: 22, fontWeight: '800', color: COLORS.gray900 },
-  addBtn:       { backgroundColor: COLORS.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
+  addBtn:       { backgroundColor: COLORS.primary, borderRadius: RADIUS.sm + 2, paddingHorizontal: 14, paddingVertical: 7 },
   addBtnText:   { color: '#fff', fontWeight: '700', fontSize: 13 },
 
+  // AI ボタン
+  aiBtn:     { borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#EDE9FE', borderWidth: 1.5, borderColor: '#8B5CF6' },
+  aiBtnText: { fontSize: 12, fontWeight: '700', color: '#7C3AED' },
+
   // Googleカレンダーボタン
-  gcalBtn:         { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
-  gcalBtnActive:   { borderColor: GCAL_COLOR, backgroundColor: '#EBF3FF' },
-  gcalBtnText:     { fontSize: 12, fontWeight: '700', color: COLORS.gray600 },
-  gcalBtnTextActive: { color: GCAL_COLOR },
+  gcalBtn:            { borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
+  gcalBtnActive:      { borderColor: GCAL_COLOR, backgroundColor: '#EBF3FF' },
+  gcalBtnText:        { fontSize: 12, fontWeight: '700', color: COLORS.gray600 },
+  gcalBtnTextActive:  { color: GCAL_COLOR },
+  gcalBtnDisabled:    { borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.gray50 },
+  gcalBtnDisabledText:{ fontSize: 12, fontWeight: '600', color: COLORS.gray400 },
 
   // Googleカレンダー エラーバー
   gcalErrorBar:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#FEF3C7' },
   gcalErrorText:  { fontSize: 12, color: '#92400E', flex: 1 },
   gcalErrorRetry: { fontSize: 12, fontWeight: '700', color: COLORS.primary, paddingLeft: 8 },
+
+  // AI モーダル
+  aiLoadingWrap:  { alignItems: 'center', paddingVertical: 48 },
+  aiLoadingEmoji: { fontSize: 44, marginBottom: 16 },
+  aiLoadingText:  { fontSize: 16, fontWeight: '700', color: COLORS.gray900, marginBottom: 6 },
+  aiLoadingNote:  { fontSize: 13, color: COLORS.gray400 },
+
+  aiResultWrap:   { backgroundColor: '#F5F3FF', borderRadius: RADIUS.lg, padding: 18, marginBottom: 20 },
+  aiResultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  aiResultLabel:  { fontSize: 14, fontWeight: '800', color: '#7C3AED' },
+  aiResultText:   { fontSize: 15, color: COLORS.gray900, lineHeight: 24 },
+
+  aiRetryBtn:  { backgroundColor: '#EDE9FE', borderRadius: RADIUS.sm, paddingHorizontal: 12, paddingVertical: 6 },
+  aiRetryText: { fontSize: 12, fontWeight: '700', color: '#7C3AED' },
+
+  aiErrorWrap:  { alignItems: 'center', paddingVertical: 32, gap: 12 },
+  aiErrorEmoji: { fontSize: 36 },
+  aiErrorText:  { fontSize: 13, color: COLORS.gray600, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
+
+  aiNote:     { marginTop: 16, gap: 4 },
+  aiNoteText: { fontSize: 11, color: COLORS.gray400, textAlign: 'center' },
 
   // カレンダー
   calendarWrap: { backgroundColor: COLORS.white, marginHorizontal: 0, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
@@ -651,27 +808,26 @@ const styles = StyleSheet.create({
   // 選択日バー
   filterBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: COLORS.primaryLight, borderBottomWidth: 1, borderBottomColor: COLORS.primary + '30',
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 2,
+    backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.gray200,
   },
-  filterBarDate: { fontSize: 14, fontWeight: '700', color: COLORS.primary },
+  filterBarDate: { fontSize: 14, fontWeight: '700', color: COLORS.gray900 },
   filterBarAll:  { fontSize: 13, fontWeight: '600', color: COLORS.gray600 },
-  clearDateBtn:  { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: COLORS.white, borderRadius: 8, borderWidth: 1, borderColor: COLORS.primary },
+  clearDateBtn:  { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.primary },
   clearDateText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
 
   // リスト
   list:       { flex: 1 },
-  dateHeader: { fontSize: 12, fontWeight: '800', color: COLORS.gray400, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4, letterSpacing: 0.3 },
+  dateHeader: { fontSize: 13, fontWeight: '700', color: COLORS.gray700, paddingHorizontal: SPACING.md, paddingTop: SPACING.md, paddingBottom: SPACING.xs },
 
   // アイテムカード
   itemCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.white,
-    marginHorizontal: 12, marginBottom: 6,
-    borderRadius: 14, padding: 14,
-    borderLeftWidth: 4, gap: 10,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.xs + 2,
+    borderRadius: RADIUS.lg, padding: 14,
+    borderLeftWidth: 3, gap: 10,
+    ...SHADOW.sm,
   },
   check:     { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: COLORS.gray200, alignItems: 'center', justifyContent: 'center' },
   checkMark: { fontSize: 12, color: '#fff', fontWeight: '800' },
@@ -689,42 +845,42 @@ const styles = StyleSheet.create({
   emptyWrap:    { alignItems: 'center', paddingTop: 40 },
   emptyEmoji:   { fontSize: 44, marginBottom: 12 },
   emptyText:    { fontSize: 14, color: COLORS.gray400, marginBottom: 20 },
-  emptyAdd:     { backgroundColor: COLORS.primaryLight, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+  emptyAdd:     { backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.md, paddingHorizontal: 20, paddingVertical: 10 },
   emptyAddText: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
 
   // モーダル
   modalContainer: { flex: 1, backgroundColor: COLORS.white },
-  modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
   modalTitle:     { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
   modalCancel:    { fontSize: 15, color: COLORS.gray600 },
   modalSave:      { fontSize: 15, fontWeight: '700', color: COLORS.primary },
 
   // 種類選択
   typeBlock:      { marginBottom: 10 },
-  typeGroupLabel: { fontSize: 11, fontWeight: '800', color: COLORS.gray400, letterSpacing: 0.5, marginBottom: 6 },
-  typeRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeBtn:        { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
+  typeGroupLabel: { fontSize: 11, fontWeight: '800', color: COLORS.gray500, marginBottom: 6 },
+  typeRow:        { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
+  typeBtn:        { paddingHorizontal: 12, paddingVertical: SPACING.sm, borderRadius: RADIUS.sm + 2, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
   typeBtnText:    { fontSize: 13, fontWeight: '600', color: COLORS.gray600 },
-  divider:        { height: 1, backgroundColor: COLORS.gray100, marginVertical: 16 },
+  divider:        { height: 1, backgroundColor: COLORS.gray100, marginVertical: SPACING.md },
 
   // フォーム
   formLabel: { fontSize: 13, fontWeight: '700', color: COLORS.gray600, marginBottom: 6 },
-  formInput: { borderWidth: 1, borderColor: COLORS.gray200, borderRadius: 10, padding: 12, fontSize: 14, color: COLORS.gray900, backgroundColor: COLORS.gray50 },
+  formInput: { borderWidth: 1, borderColor: COLORS.gray200, borderRadius: RADIUS.sm + 2, padding: 12, fontSize: 14, color: COLORS.gray900, backgroundColor: COLORS.gray50 },
 
   // バイト先
-  wpRow:      { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 14 },
-  wpChip:     { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
+  wpRow:      { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: 14 },
+  wpChip:     { paddingHorizontal: 12, paddingVertical: SPACING.sm, borderRadius: RADIUS.sm + 2, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
   wpChipText: { fontSize: 13, fontWeight: '600', color: COLORS.gray900 },
 
   // 給与プレビュー
-  wagePreview:     { backgroundColor: COLORS.successLight, borderRadius: 10, padding: 12, marginBottom: 14 },
+  wagePreview:     { backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm + 2, padding: 12, marginBottom: 14 },
   wagePreviewText: { fontSize: 14, fontWeight: '700', color: COLORS.success, textAlign: 'center' },
 
   // 警告
-  warnBox:  { backgroundColor: COLORS.warningLight, borderRadius: 10, padding: 12, marginBottom: 14 },
+  warnBox:  { backgroundColor: COLORS.warningLight, borderRadius: RADIUS.sm + 2, padding: 12, marginBottom: 14 },
   warnText: { fontSize: 13, color: COLORS.warning, lineHeight: 18 },
 
   // 削除ボタン
-  deleteBtn:     { marginTop: 24, marginBottom: 8, padding: 14, borderRadius: 12, backgroundColor: '#FEF2F2', alignItems: 'center' },
-  deleteBtnText: { fontSize: 15, fontWeight: '700', color: '#EF4444' },
+  deleteBtn:     { marginTop: SPACING.lg, marginBottom: SPACING.sm, padding: 14, borderRadius: RADIUS.md, backgroundColor: '#FEF2F2', alignItems: 'center' },
+  deleteBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.danger },
 });

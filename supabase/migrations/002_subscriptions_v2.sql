@@ -11,7 +11,7 @@ CREATE TABLE public.subscriptions (
   user_id      uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   service_name text        NOT NULL,
   amount       int         NOT NULL CHECK (amount > 0),
-  renewal_day  int         NOT NULL CHECK (renewal_day BETWEEN 1 AND 28),
+  renewal_day  int         NOT NULL CHECK (renewal_day BETWEEN 1 AND 31),
   memo         text,
   is_active    bool        NOT NULL DEFAULT true,
   created_at   timestamptz NOT NULL DEFAULT now()

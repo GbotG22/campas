@@ -2,6 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
 import { supabase } from '@/lib/supabase';
+import {
+  scheduleShiftNotification,
+  cancelShiftNotification,
+  rescheduleAllShiftNotifications,
+} from '@/lib/notifications';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Database } from '@/types/database';
 
@@ -74,6 +79,15 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
         const typed = data as unknown as ShiftWithWorkplace[];
         set({ shifts: typed });
         AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(typed)).catch(() => {});
+        // アプリ起動・再フェッチ時に通知を最新状態へ同期
+        rescheduleAllShiftNotifications(
+          typed.map(s => ({
+            id:             s.id,
+            date:           s.date,
+            start_time:     s.start_time,
+            workplace_name: s.workplace?.name ?? null,
+          })),
+        ).catch(() => {});
       }
     } catch (e) {
       console.error('[ShiftsStore] fetch exception:', e);
@@ -95,10 +109,18 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
     if (error) {
       console.error('[ShiftsStore] add error:', error.code, error.message, error.hint);
     } else if (data) {
-      const next = [...get().shifts, data as unknown as ShiftWithWorkplace]
+      const typed = data as unknown as ShiftWithWorkplace;
+      const next = [...get().shifts, typed]
         .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
       set({ shifts: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      // バイト開始30分前の通知を登録
+      scheduleShiftNotification({
+        id:             typed.id,
+        date:           typed.date,
+        start_time:     typed.start_time,
+        workplace_name: typed.workplace?.name ?? null,
+      }).catch(() => {});
     }
     return error;
   },
@@ -122,10 +144,19 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
     if (error) {
       console.error('[ShiftsStore] update error:', error.code, error.message);
     } else if (data) {
-      const next = get().shifts.map(s => s.id === id ? data as unknown as ShiftWithWorkplace : s)
+      const typed = data as unknown as ShiftWithWorkplace;
+      const next = get().shifts.map(s => s.id === id ? typed : s)
         .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
       set({ shifts: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      // 日時が変わった可能性があるため、古い通知をキャンセルして再登録
+      cancelShiftNotification(id).catch(() => {});
+      scheduleShiftNotification({
+        id:             typed.id,
+        date:           typed.date,
+        start_time:     typed.start_time,
+        workplace_name: typed.workplace?.name ?? null,
+      }).catch(() => {});
     }
     return error;
   },
@@ -141,6 +172,8 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
       const next = get().shifts.filter(s => s.id !== id);
       set({ shifts: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      // 削除されたシフトの通知をキャンセル
+      cancelShiftNotification(id).catch(() => {});
     }
     return error;
   },

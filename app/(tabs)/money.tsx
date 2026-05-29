@@ -9,7 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import InlineDatePicker from '@/components/InlineDatePicker';
 import InlineTimePicker from '@/components/InlineTimePicker';
-import { COLORS } from '@/constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW, SUBJECT_COLORS } from '@/constants/theme';
+import { resolveServiceIcon } from '@/constants/serviceIcons';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useIncomes, INCOME_TYPE_CONFIG } from '@/hooks/useIncomes';
 import { useShifts, calcWage, formatMinutes, calcWorkMinutes } from '@/hooks/useShifts';
@@ -131,7 +132,7 @@ export default function MoneyScreen() {
     const day    = parseInt(subDay, 10);
     if (!subName.trim()) { Alert.alert('入力エラー', 'サービス名を入力してください'); return; }
     if (isNaN(amount) || amount <= 0) { Alert.alert('入力エラー', '月額を入力してください'); return; }
-    if (isNaN(day) || day < 1 || day > 28) { Alert.alert('入力エラー', '更新日は1〜28で入力してください'); return; }
+    if (isNaN(day) || day < 1 || day > 31) { Alert.alert('入力エラー', '更新日は1〜31で入力してください'); return; }
     setSubSaving(true);
     const payload = { service_name: subName.trim(), amount, renewal_day: day, memo: subMemo.trim() || null };
     const err = editingSub ? await updateSubscription(editingSub.id, payload) : await addSubscription({ ...payload, is_active: true });
@@ -355,9 +356,9 @@ export default function MoneyScreen() {
               <TextInput style={styles.input} placeholder="例: Netflix" value={subName} onChangeText={setSubName} autoFocus />
               <Text style={styles.inputLabel}>月額（円）*</Text>
               <TextInput style={styles.input} placeholder="例: 1490" value={subAmount} onChangeText={setSubAmount} keyboardType="number-pad" />
-              <Text style={styles.inputLabel}>更新日 *</Text>
+              <Text style={styles.inputLabel}>更新日 * <Text style={{ fontSize: 11, color: COLORS.gray400, fontWeight: '400' }}>（29〜31日は月末に自動調整）</Text></Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                   <TouchableOpacity
                     key={d}
                     style={[styles.dayBtn, subDay === String(d) && styles.dayBtnActive]}
@@ -562,17 +563,126 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
       {expenses.length === 0 ? (
         <Empty emoji="💰" text="今月の支出はまだありません" />
       ) : expenses.map(item => (
-        <TouchableOpacity key={item.id} style={styles.row} onLongPress={() => Alert.alert(item.title, '削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteExpense(item.id) }])}>
+        <View key={item.id} style={styles.row}>
           <View style={[styles.dot, { backgroundColor: CAT_COLORS[item.category as Category] ?? COLORS.gray400 }]} />
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{item.title}</Text>
             {item.note ? <Text style={styles.rowMeta}>{item.note}</Text> : null}
             <Text style={styles.rowMeta}>{item.category ?? 'その他'} · {item.paid_at}</Text>
           </View>
-          <Text style={styles.rowAmount}>¥{item.amount.toLocaleString()}</Text>
-        </TouchableOpacity>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            <Text style={styles.rowAmount}>¥{item.amount.toLocaleString()}</Text>
+            <TouchableOpacity
+              style={styles.deleteRowBtn}
+              onPress={() => Alert.alert(item.title, '削除しますか？', [
+                { text: 'キャンセル', style: 'cancel' },
+                { text: '削除', style: 'destructive', onPress: () => deleteExpense(item.id) },
+              ])}
+            >
+              <Text style={styles.deleteRowBtnText}>削除</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ))}
     </ScrollView>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// サブスクタブ — ヘルパー
+// ─────────────────────────────────────────────────────────────
+
+function getSubAccentColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (name.charCodeAt(i) + ((hash << 5) - hash)) | 0;
+  }
+  return SUBJECT_COLORS[Math.abs(hash) % SUBJECT_COLORS.length];
+}
+
+function DaysChip({ days }: { days: number }) {
+  const urgent  = days <= 3;
+  const warning = !urgent && days <= 7;
+  const color   = urgent ? COLORS.danger : warning ? COLORS.warning : COLORS.gray500;
+  const bg      = urgent ? COLORS.dangerLight : warning ? COLORS.warningLight : COLORS.gray100;
+  return (
+    <View style={[styles.daysChip, { backgroundColor: bg }]}>
+      <Text style={[styles.daysChipText, { color }]}>
+        {days === 0 ? '今日更新' : `あと ${days}日`}
+      </Text>
+    </View>
+  );
+}
+
+function ServiceIcon({ name, accentColor }: { name: string; accentColor: string }) {
+  const config = resolveServiceIcon(name);
+  if (config) {
+    return (
+      <View style={[styles.serviceIconWrap, { backgroundColor: config.backgroundColor }]}>
+        <Text style={styles.serviceIconEmoji}>{config.emoji}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.serviceIconWrap, { backgroundColor: accentColor }]}>
+      <Text style={styles.serviceIconInitial}>{name.trim().charAt(0).toUpperCase()}</Text>
+    </View>
+  );
+}
+
+function SubCard({ sub, onEdit, onDelete }: {
+  sub: Subscription;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const days        = daysUntilRenewal(sub.renewal_day);
+  const next        = getNextRenewalDate(sub.renewal_day);
+  const nextStr     = `${next.getMonth() + 1}月${next.getDate()}日`;
+  const accentColor = getSubAccentColor(sub.service_name);
+
+  function handleLongPress() {
+    Alert.alert(sub.service_name, '操作を選択してください', [
+      { text: '編集', onPress: onEdit },
+      {
+        text: '削除', style: 'destructive',
+        onPress: () =>
+          Alert.alert('削除しますか？', sub.service_name, [
+            { text: 'キャンセル', style: 'cancel' },
+            { text: '削除', style: 'destructive', onPress: onDelete },
+          ]),
+      },
+      { text: 'キャンセル', style: 'cancel' },
+    ]);
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.subCard}
+      onPress={onEdit}
+      onLongPress={handleLongPress}
+      activeOpacity={0.75}
+    >
+      {/* Header: service icon + name (+ memo) */}
+      <View style={styles.subCardHeader}>
+        <ServiceIcon name={sub.service_name} accentColor={accentColor} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.subServiceName} numberOfLines={1}>{sub.service_name}</Text>
+          {sub.memo ? <Text style={styles.subMemoText}>{sub.memo}</Text> : null}
+        </View>
+      </View>
+
+      {/* Amount — hero */}
+      <Text style={styles.subAmountHero}>
+        ¥{sub.amount.toLocaleString()}
+        <Text style={styles.subAmountUnit}> /月</Text>
+      </Text>
+
+      {/* Footer: next date + days badge */}
+      <View style={styles.subCardFooter}>
+        <Text style={styles.subRenewalText}>次回 {nextStr}</Text>
+        <DaysChip days={days} />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -584,51 +694,62 @@ function SubscriptionsTab({ subscriptions, monthlyTotal, onEdit, onDelete }: {
   onEdit: (s: Subscription) => void;
   onDelete: (id: string) => void;
 }) {
+  const nextSub = subscriptions.length > 0
+    ? [...subscriptions].sort((a, b) => daysUntilRenewal(a.renewal_day) - daysUntilRenewal(b.renewal_day))[0]
+    : null;
+  const nextSubDate    = nextSub ? getNextRenewalDate(nextSub.renewal_day) : null;
+  const nextSubDateStr = nextSubDate
+    ? `${nextSubDate.getMonth() + 1}月${nextSubDate.getDate()}日`
+    : '';
+  const nextSubDays = nextSub ? daysUntilRenewal(nextSub.renewal_day) : 0;
+
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={[styles.summaryCard, { backgroundColor: COLORS.primary }]}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* サマリーカード */}
+      <View style={styles.summaryCard}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View>
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>月額合計</Text>
-            <Text style={{ fontSize: 32, fontWeight: '800', color: '#fff' }}>¥{monthlyTotal.toLocaleString()}</Text>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>年間 ¥{(monthlyTotal * 12).toLocaleString()}</Text>
+            <Text style={styles.summarySubLabel}>月額合計</Text>
+            <Text style={[styles.summaryAmount, { color: COLORS.primary }]}>
+              ¥{monthlyTotal.toLocaleString()}
+            </Text>
+            <Text style={styles.subAnnualText}>
+              年間 ¥{(monthlyTotal * 12).toLocaleString()}
+            </Text>
           </View>
-          <View style={{ alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 14 }}>
-            <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff' }}>{subscriptions.length}</Text>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>件</Text>
+          <View style={[styles.summaryCountBadge, { backgroundColor: COLORS.primaryLight }]}>
+            <Text style={[styles.summaryCountNum, { color: COLORS.primary }]}>{subscriptions.length}</Text>
+            <Text style={[styles.summaryCountLabel, { color: COLORS.primary }]}>件</Text>
           </View>
         </View>
+
+        {nextSub && (
+          <>
+            <View style={styles.subSummaryDivider} />
+            <Text style={styles.subSummaryNextLabel}>次の支払い</Text>
+            <View style={styles.subSummaryNextRow}>
+              <View style={[styles.subSummaryNextDot, { backgroundColor: getSubAccentColor(nextSub.service_name) }]} />
+              <Text style={styles.subSummaryNextName} numberOfLines={1}>
+                {nextSub.service_name}
+              </Text>
+              <Text style={styles.subSummaryNextDate}>{nextSubDateStr}</Text>
+              <DaysChip days={nextSubDays} />
+            </View>
+          </>
+        )}
       </View>
 
+      {/* サブスク一覧 */}
       {subscriptions.length === 0 ? (
         <Empty emoji="🔄" text="サブスクが登録されていません" />
-      ) : subscriptions.map(sub => {
-        const days    = daysUntilRenewal(sub.renewal_day);
-        const next    = getNextRenewalDate(sub.renewal_day);
-        const nextStr = `${next.getMonth() + 1}/${next.getDate()}`;
-        const badgeColor = days <= 3 ? COLORS.danger : days <= 7 ? COLORS.warning : COLORS.gray400;
-        const badgeBg    = days <= 3 ? COLORS.dangerLight : days <= 7 ? COLORS.warningLight : COLORS.gray100;
-        return (
-          <TouchableOpacity key={sub.id} style={styles.card} onPress={() => onEdit(sub)} activeOpacity={0.8}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.cardTitle}>{sub.service_name}</Text>
-                {sub.memo ? <Text style={styles.rowMeta}>{sub.memo}</Text> : null}
-                <Text style={styles.rowMeta}>毎月{sub.renewal_day}日（次回 {nextStr}）</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.gray900 }}>¥{sub.amount.toLocaleString()}<Text style={{ fontSize: 12, fontWeight: '400', color: COLORS.gray400 }}>/月</Text></Text>
-                <View style={[{ borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }, { backgroundColor: badgeBg }]}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: badgeColor }}>{days === 0 ? '今日更新' : `あと${days}日`}</Text>
-                </View>
-                <TouchableOpacity style={styles.dangerSmall} onPress={() => Alert.alert(sub.service_name, '削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => onDelete(sub.id) }])}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.danger }}>削除</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+      ) : subscriptions.map(sub => (
+        <SubCard
+          key={sub.id}
+          sub={sub}
+          onEdit={() => onEdit(sub)}
+          onDelete={() => onDelete(sub.id)}
+        />
+      ))}
     </ScrollView>
   );
 }
@@ -652,16 +773,16 @@ function IncomesTab({ incomes, monthlyTotal, thisYM, monthLabel, onDelete }: {
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={[styles.summaryCard, { backgroundColor: '#10B981' }]}>
-        <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>{monthLabel}の収入</Text>
-        <Text style={{ fontSize: 36, fontWeight: '800', color: '#fff' }}>¥{monthlyTotal.toLocaleString()}</Text>
+      <View style={styles.summaryCard}>
+        <Text style={styles.summarySubLabel}>{monthLabel}の収入</Text>
+        <Text style={[styles.summaryAmount, { color: COLORS.success }]}>¥{monthlyTotal.toLocaleString()}</Text>
         {breakdown.length > 0 && (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {breakdown.map(({ type, total }) => {
               const cfg = INCOME_TYPE_CONFIG[type];
               return (
-                <View key={type} style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{cfg.emoji} {cfg.label} ¥{total.toLocaleString()}</Text>
+                <View key={type} style={{ backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Text style={{ color: COLORS.success, fontSize: 12, fontWeight: '700' }}>{cfg.emoji} {cfg.label} ¥{total.toLocaleString()}</Text>
                 </View>
               );
             })}
@@ -675,15 +796,26 @@ function IncomesTab({ incomes, monthlyTotal, thisYM, monthLabel, onDelete }: {
       ) : incomes.map(item => {
         const cfg = INCOME_TYPE_CONFIG[item.income_type];
         return (
-          <TouchableOpacity key={item.id} style={styles.row} onLongPress={() => Alert.alert(item.title, '削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => onDelete(item.id) }])}>
+          <View key={item.id} style={styles.row}>
             <Text style={{ fontSize: 22 }}>{cfg.emoji}</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{item.title}</Text>
               <Text style={styles.rowMeta}>{cfg.label} · {item.received_at}</Text>
               {item.note ? <Text style={styles.rowMeta}>{item.note}</Text> : null}
             </View>
-            <Text style={[styles.rowAmount, { color: COLORS.success }]}>+¥{item.amount.toLocaleString()}</Text>
-          </TouchableOpacity>
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <Text style={[styles.rowAmount, { color: COLORS.success }]}>+¥{item.amount.toLocaleString()}</Text>
+              <TouchableOpacity
+                style={styles.deleteRowBtn}
+                onPress={() => Alert.alert(item.title, '削除しますか？', [
+                  { text: 'キャンセル', style: 'cancel' },
+                  { text: '削除', style: 'destructive', onPress: () => onDelete(item.id) },
+                ])}
+              >
+                <Text style={styles.deleteRowBtnText}>削除</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         );
       })}
     </ScrollView>
@@ -710,10 +842,10 @@ function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
       {/* 今月見込み */}
-      <View style={[styles.summaryCard, { backgroundColor: '#6366F1' }]}>
-        <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>{monthLabel}の給与見込み</Text>
-        <Text style={{ fontSize: 36, fontWeight: '800', color: '#fff' }}>¥{monthlyEstimate.toLocaleString()}</Text>
-        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>シフト {thisMonthShifts.length}件</Text>
+      <View style={styles.summaryCard}>
+        <Text style={styles.summarySubLabel}>{monthLabel}の給与見込み</Text>
+        <Text style={[styles.summaryAmount, { color: '#6366F1' }]}>¥{monthlyEstimate.toLocaleString()}</Text>
+        <Text style={{ fontSize: 12, color: COLORS.gray400, marginTop: 4 }}>シフト {thisMonthShifts.length}件</Text>
       </View>
 
       {/* バイト先一覧 */}
@@ -753,17 +885,20 @@ function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords
       {thisMonthShifts.length === 0 ? (
         <Empty emoji="📅" text="シフトがありません" />
       ) : thisMonthShifts.map(s => (
-        <TouchableOpacity key={s.id} style={[styles.row, { borderLeftWidth: 3, borderLeftColor: s.workplace?.color ?? COLORS.primary }]} onLongPress={() => onDeleteShift(s.id)}>
+        <View key={s.id} style={[styles.row, { borderLeftWidth: 3, borderLeftColor: s.workplace?.color ?? COLORS.primary }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{s.workplace?.name ?? 'バイト'}</Text>
             <Text style={styles.rowMeta}>{s.date}  {s.start_time} 〜 {s.end_time}</Text>
             {s.note ? <Text style={styles.rowMeta}>{s.note}</Text> : null}
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.gray900 }}>¥{(s.estimated_wage ?? 0).toLocaleString()}</Text>
             <Text style={styles.rowMeta}>{formatMinutes(calcWorkMinutes(s.start_time, s.end_time, s.break_minutes))}</Text>
+            <TouchableOpacity style={styles.deleteRowBtn} onPress={() => onDeleteShift(s.id)}>
+              <Text style={styles.deleteRowBtnText}>削除</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       ))}
 
       {/* 給与記録 */}
@@ -776,14 +911,19 @@ function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords
       {salaryRecords.length === 0 ? (
         <Empty emoji="📋" text="給与記録がありません" />
       ) : salaryRecords.map(r => (
-        <TouchableOpacity key={r.id} style={styles.row} onLongPress={() => onDeleteSalary(r.id)}>
+        <View key={r.id} style={styles.row}>
           <Text style={{ fontSize: 22 }}>💴</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{r.workplace?.name ?? 'バイト'} {r.year_month}</Text>
             {r.note ? <Text style={styles.rowMeta}>{r.note}</Text> : null}
           </View>
-          <Text style={[styles.rowAmount, { color: COLORS.success }]}>+¥{r.amount.toLocaleString()}</Text>
-        </TouchableOpacity>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            <Text style={[styles.rowAmount, { color: COLORS.success }]}>+¥{r.amount.toLocaleString()}</Text>
+            <TouchableOpacity style={styles.deleteRowBtn} onPress={() => onDeleteSalary(r.id)}>
+              <Text style={styles.deleteRowBtnText}>削除</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       ))}
     </ScrollView>
   );
@@ -819,43 +959,53 @@ function Empty({ emoji, text }: { emoji: string; text: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.gray50 },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 4 },
   title:  { fontSize: 22, fontWeight: '800', color: COLORS.gray900 },
 
-  outlineBtn:     { borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  outlineBtn:     { borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.sm + 4, paddingVertical: SPACING.xs + 2 },
   outlineBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
-  primaryBtn:     { backgroundColor: COLORS.primary, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  primaryBtn:     { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.md - 2, paddingVertical: SPACING.xs + 3 },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
   tabScroll:     { maxHeight: 48 },
-  tabContainer:  { paddingHorizontal: 12, gap: 8, alignItems: 'center', paddingVertical: 6 },
-  tabItem:       { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 20, backgroundColor: COLORS.gray100 },
+  tabContainer:  { paddingHorizontal: SPACING.sm + 4, gap: SPACING.sm, alignItems: 'center', paddingVertical: SPACING.xs + 2 },
+  tabItem:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 3, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
   tabItemActive: { backgroundColor: COLORS.primary },
   tabText:       { fontSize: 14, fontWeight: '600', color: COLORS.gray600 },
   tabTextActive: { color: '#fff' },
 
+  // サマリーカード（全タブ共通・白地）
   summaryCard: {
-    marginHorizontal: 16, marginTop: 8, marginBottom: 12,
-    backgroundColor: COLORS.white, borderRadius: 16, padding: 20,
-    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm + 4,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    ...SHADOW.sm,
   },
-  summarySubLabel: { fontSize: 13, color: COLORS.gray400, marginBottom: 4 },
-  summaryAmount:   { fontSize: 36, fontWeight: '800', color: COLORS.gray900 },
+  summarySubLabel:   { fontSize: 13, color: COLORS.gray400, marginBottom: SPACING.xs },
+  summaryAmount:     { fontSize: 36, fontWeight: '800', color: COLORS.gray900 },
+  summaryCountBadge: { borderRadius: RADIUS.md, padding: SPACING.md, alignItems: 'center', minWidth: 64 },
+  summaryCountNum:   { fontSize: 28, fontWeight: '800' },
+  summaryCountLabel: { fontSize: 12, fontWeight: '600' },
 
   card: {
-    backgroundColor: COLORS.white, marginHorizontal: 16, marginBottom: 8,
-    borderRadius: 14, padding: 16,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+    backgroundColor: COLORS.white,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.sm,
+    borderRadius: RADIUS.lg, padding: SPACING.md,
+    ...SHADOW.sm,
   },
   cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.gray900, marginBottom: 2 },
 
-  listSectionLabel: { fontSize: 13, fontWeight: '700', color: COLORS.gray600, paddingHorizontal: 16, marginBottom: 6, marginTop: 4 },
+  listSectionLabel: { fontSize: 13, fontWeight: '700', color: COLORS.gray600, paddingHorizontal: SPACING.md, marginBottom: 6, marginTop: 4 },
 
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.white, marginHorizontal: 16, marginBottom: 6,
-    borderRadius: 12, padding: 12,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm + 2,
+    backgroundColor: COLORS.white,
+    marginHorizontal: SPACING.md, marginBottom: SPACING.xs + 2,
+    borderRadius: RADIUS.md, padding: SPACING.sm + 4,
+    ...SHADOW.sm,
   },
   rowTitle:  { fontSize: 14, fontWeight: '600', color: COLORS.gray900 },
   rowMeta:   { fontSize: 11, color: COLORS.gray400, marginTop: 2 },
@@ -863,50 +1013,179 @@ const styles = StyleSheet.create({
 
   dot: { width: 10, height: 10, borderRadius: 5 },
 
-  progressBar:  { height: 8, backgroundColor: COLORS.gray100, borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4 },
+  // プログレスバー：高さを太くして視認性アップ
+  progressBar:  { height: 12, backgroundColor: COLORS.gray100, borderRadius: RADIUS.sm, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: RADIUS.sm },
 
-  sectionHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  sectionTitle:     { fontSize: 14, fontWeight: '700', color: COLORS.gray900 },
-  sectionAddBtn:    { backgroundColor: COLORS.primaryLight, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5 },
-  sectionAddBtnText:{ fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  sectionHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm },
+  sectionTitle:      { fontSize: 14, fontWeight: '700', color: COLORS.gray900 },
+  sectionAddBtn:     { backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.md, paddingHorizontal: SPACING.sm + 4, paddingVertical: 5 },
+  sectionAddBtnText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
 
-  wagePreview:        { backgroundColor: COLORS.successLight, borderRadius: 12, padding: 14, marginVertical: 10, alignItems: 'center' },
-  wagePreviewLabel:   { fontSize: 12, color: COLORS.success, fontWeight: '600' },
-  wagePreviewWage:    { fontSize: 28, fontWeight: '800', color: COLORS.success },
-  wagePreviewDuration:{ fontSize: 12, color: COLORS.success, marginTop: 2 },
+  wagePreview:         { backgroundColor: COLORS.successLight, borderRadius: RADIUS.md, padding: SPACING.md, marginVertical: SPACING.sm + 2, alignItems: 'center' },
+  wagePreviewLabel:    { fontSize: 12, color: COLORS.success, fontWeight: '600' },
+  wagePreviewWage:     { fontSize: 28, fontWeight: '800', color: COLORS.success },
+  wagePreviewDuration: { fontSize: 12, color: COLORS.success, marginTop: 2 },
 
   colorCircle:         { width: 32, height: 32, borderRadius: 16 },
   colorCircleSelected: { borderWidth: 3, borderColor: COLORS.gray900 },
 
-  dangerSmall: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: COLORS.dangerLight },
+  dangerSmall: { paddingHorizontal: SPACING.md, paddingVertical: 11, borderRadius: RADIUS.sm, backgroundColor: COLORS.dangerLight },
 
-  empty:     { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  // 行内削除ボタン（常時表示）
+  deleteRowBtn:     { paddingHorizontal: SPACING.sm + 2, paddingVertical: 10, borderRadius: RADIUS.sm, backgroundColor: COLORS.dangerLight },
+  deleteRowBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.danger },
+
+  empty:     { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.sm },
   emptyText: { fontSize: 14, color: COLORS.gray400 },
 
   modal:       { flex: 1, backgroundColor: COLORS.white },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 6, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
   modalTitle:  { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
   cancelText:  { fontSize: 16, color: COLORS.gray600 },
   saveText:    { fontSize: 16, fontWeight: '700', color: COLORS.primary },
 
-  inputLabel: { fontSize: 13, fontWeight: '600', color: COLORS.gray600, marginBottom: 6, marginTop: 16 },
-  input:      { borderWidth: 1, borderColor: COLORS.gray200, borderRadius: 10, padding: 12, fontSize: 16, backgroundColor: COLORS.gray50 },
-  chip:       { borderWidth: 2, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: COLORS.gray600, marginBottom: 6, marginTop: SPACING.md },
+  input:      { borderWidth: 1, borderColor: COLORS.gray200, borderRadius: RADIUS.sm + 2, padding: SPACING.sm + 4, fontSize: 16, backgroundColor: COLORS.gray50 },
+  chip:       { borderWidth: 2, borderRadius: RADIUS.full, paddingHorizontal: SPACING.md - 2, paddingVertical: SPACING.xs + 3 },
   chipText:   { fontSize: 13, fontWeight: '600', color: COLORS.gray600 },
 
-  dayBtn:         { width: 40, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
-  dayBtnActive:   { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  dayBtnText:     { fontSize: 13, fontWeight: '600', color: COLORS.gray600 },
+  dayBtn:           { width: 40, height: 36, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
+  dayBtnActive:     { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  dayBtnText:       { fontSize: 13, fontWeight: '600', color: COLORS.gray600 },
   dayBtnTextActive: { color: '#fff' },
 
   dateTrigger: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm + 6, paddingVertical: SPACING.sm + 4, marginBottom: 4,
     backgroundColor: COLORS.primaryLight,
   },
   dateTriggerIcon:    { fontSize: 16 },
   dateTriggerText:    { flex: 1, fontSize: 15, fontWeight: '600', color: COLORS.primary },
   dateTriggerChevron: { fontSize: 18, color: COLORS.primary },
+
+  // ── サブスクカード ────────────────────────────────────────
+  subCard: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.sm + 2,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg - 4,
+    ...SHADOW.md,
+  },
+  subCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm + 2,
+    marginBottom: SPACING.sm + 4,
+  },
+  subAccentDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    flexShrink: 0,
+  },
+  subServiceName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.gray900,
+  },
+  subMemoText: {
+    fontSize: 11,
+    color: COLORS.gray400,
+    marginTop: 2,
+  },
+  subAmountHero: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.gray900,
+    marginBottom: SPACING.md,
+  },
+  subAmountUnit: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: COLORS.gray400,
+  },
+  subCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  subRenewalText: {
+    fontSize: 13,
+    color: COLORS.gray500,
+    fontWeight: '500',
+  },
+
+  // ── 日数バッジ ────────────────────────────────────────────
+  daysChip: {
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: SPACING.xs + 1,
+  },
+  daysChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // ── サブスクサマリー追加要素 ──────────────────────────────
+  subAnnualText: {
+    fontSize: 12,
+    color: COLORS.gray400,
+    marginTop: 4,
+  },
+  subSummaryDivider: {
+    height: 1,
+    backgroundColor: COLORS.gray100,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm + 4,
+  },
+  subSummaryNextLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.gray400,
+    letterSpacing: 0.4,
+    marginBottom: SPACING.xs + 2,
+  },
+  subSummaryNextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs + 2,
+  },
+  subSummaryNextDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  subSummaryNextName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.gray700,
+    flex: 1,
+  },
+  subSummaryNextDate: {
+    fontSize: 13,
+    color: COLORS.gray500,
+    marginRight: SPACING.xs,
+  },
+
+  // ── サービスアイコン ──────────────────────────────────────
+  serviceIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  serviceIconEmoji: {
+    fontSize: 20,
+  },
+  serviceIconInitial: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
 });

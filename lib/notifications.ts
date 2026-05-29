@@ -7,6 +7,22 @@ import type { Database } from '@/types/database';
 
 type Assignment   = Database['public']['Tables']['assignments']['Row'];
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
+type AppEvent     = Database['public']['Tables']['events']['Row'];
+type ShiftRow     = Database['public']['Tables']['shifts']['Row'];
+
+// ── イベント通知の対象タイプ ──────────────────────────────────────
+const NOTIFIABLE_EVENT_TYPES = ['assignment', 'test', 'report'] as const;
+type NotifiableEventType = typeof NOTIFIABLE_EVENT_TYPES[number];
+
+function isNotifiableEventType(type: string): type is NotifiableEventType {
+  return (NOTIFIABLE_EVENT_TYPES as readonly string[]).includes(type);
+}
+
+const EVENT_TYPE_LABEL: Record<NotifiableEventType, string> = {
+  assignment: '課題',
+  test:       'テスト',
+  report:     'レポート',
+};
 
 // ── 遅延ロード ────────────────────────────────────────────
 function getNotifications() {
@@ -120,13 +136,37 @@ export async function rescheduleAllNotifications(assignments: Assignment[]) {
 // サブスク通知
 // ═══════════════════════════════════════════════════════════
 
-/** renewal_day から次回更新日を返す */
+/**
+ * 指定した年・月の最終日を返す
+ * 例: lastDayOf(2024, 1) → 29（うるう年の2月）
+ */
+function lastDayOf(year: number, month: number): number {
+  // new Date(year, month+1, 0) で翌月0日 = 当月末日
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/**
+ * renewal_day から次回更新日を返す
+ * 29〜31日が存在しない月（2月など）は月末にクランプする
+ * 例: renewalDay=31, 2月 → 2/28 or 2/29
+ */
 export function getNextRenewalDate(renewalDay: number): Date {
   const now = new Date();
-  const thisMonth = new Date(now.getFullYear(), now.getMonth(), renewalDay);
-  return thisMonth > now
-    ? thisMonth
-    : new Date(now.getFullYear(), now.getMonth() + 1, renewalDay);
+  const y   = now.getFullYear();
+  const m   = now.getMonth();
+
+  // 今月の有効な更新日（月末クランプ）
+  const effectiveThisMonth = Math.min(renewalDay, lastDayOf(y, m));
+  const thisMonth = new Date(y, m, effectiveThisMonth);
+
+  if (thisMonth > now) return thisMonth;
+
+  // 来月の有効な更新日（月末クランプ）
+  const nextM    = m + 1;
+  const nextY    = nextM > 11 ? y + 1 : y;
+  const nextMIdx = nextM > 11 ? 0 : nextM;
+  const effectiveNextMonth = Math.min(renewalDay, lastDayOf(nextY, nextMIdx));
+  return new Date(nextY, nextMIdx, effectiveNextMonth);
 }
 
 /** 次回更新まで何日か */
@@ -213,6 +253,174 @@ export async function rescheduleSubscriptionNotifications(
         t.toLowerCase().includes(sub.service_name.toLowerCase()),
       );
       if (!hasRecord) await scheduleUnusedSubscriptionNotification(sub);
+    }
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+// イベント通知（課題・テスト・レポート）
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * 課題・テスト・レポートの締切通知を登録する。
+ * - 3日前 09:00
+ * - 前日  09:00
+ * - 当日  09:00
+ * 対象でないイベントタイプは何もしない。
+ */
+export async function scheduleEventNotifications(event: AppEvent): Promise<void> {
+  if (!isNotifiableEventType(event.event_type)) return;
+  if (!event.start_date) return;
+  const N = getNotifications();
+  if (!N) return;
+
+  const label = EVENT_TYPE_LABEL[event.event_type as NotifiableEventType];
+  // start_date を当日 09:00 の Date に変換（ローカルタイム）
+  const due = new Date(`${event.start_date}T09:00:00`);
+  const now = new Date();
+
+  const triggers = [
+    {
+      id:    `ev_${event.id}_3d`,
+      title: `📚 ${label}の締切3日前`,
+      body:  `「${event.title}」の締切まであと3日です`,
+      offset: -3,
+    },
+    {
+      id:    `ev_${event.id}_1d`,
+      title: `⚠️ ${label}の締切は明日`,
+      body:  `「${event.title}」の締切は明日です！`,
+      offset: -1,
+    },
+    {
+      id:    `ev_${event.id}_0d`,
+      title: `🔥 ${label}の締切は今日`,
+      body:  `「${event.title}」の締切は今日です！`,
+      offset:  0,
+    },
+  ];
+
+  for (const t of triggers) {
+    const date = new Date(due);
+    date.setDate(date.getDate() + t.offset);
+    if (date <= now) continue; // 過去の日時はスキップ
+    try {
+      await N.scheduleNotificationAsync({
+        identifier: t.id,
+        content:    { title: t.title, body: t.body, sound: true },
+        trigger:    { type: N.SchedulableTriggerInputTypes.DATE, date },
+      });
+    } catch { /* ignore */ }
+  }
+}
+
+/** イベントに紐づく通知を全てキャンセルする */
+export async function cancelEventNotifications(id: string): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    await Promise.all([
+      N.cancelScheduledNotificationAsync(`ev_${id}_3d`),
+      N.cancelScheduledNotificationAsync(`ev_${id}_1d`),
+      N.cancelScheduledNotificationAsync(`ev_${id}_0d`),
+    ]);
+  } catch { /* ignore */ }
+}
+
+/**
+ * 全イベントの通知を一括再スケジュールする。
+ * fetch() 後に呼ぶことで、古い通知（削除済み・日付変更済み）を
+ * クリーンアップしつつ最新状態に同期する。
+ */
+export async function rescheduleAllEventNotifications(events: AppEvent[]): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    // ev_ プレフィックスの通知を全てキャンセル
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(n => n.identifier.startsWith('ev_'))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
+    // 未完了・対象タイプのイベントだけ再スケジュール
+    for (const ev of events) {
+      if (!ev.is_done && isNotifiableEventType(ev.event_type)) {
+        await scheduleEventNotifications(ev);
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+// シフト通知（バイト開始前リマインダー）
+// ═══════════════════════════════════════════════════════════
+
+/** シフト通知に必要な最小限の情報 */
+interface ShiftNotificationParams {
+  id:             string;
+  date:           string;        // YYYY-MM-DD
+  start_time:     string;        // HH:MM
+  workplace_name?: string | null;
+}
+
+/**
+ * バイト開始30分前の通知を登録する。
+ * 既に30分前を過ぎているシフトは何もしない。
+ */
+export async function scheduleShiftNotification(
+  shift: ShiftNotificationParams,
+): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+
+    const shiftStart  = new Date(`${shift.date}T${shift.start_time}:00`);
+    const triggerDate = new Date(shiftStart.getTime() - 30 * 60 * 1000);
+    if (triggerDate <= new Date()) return;
+
+    const name = shift.workplace_name ?? 'バイト';
+    await N.scheduleNotificationAsync({
+      identifier: `shift_${shift.id}_pre`,
+      content: {
+        title: '💼 バイト開始30分前',
+        body:  `${name}のバイトが30分後に始まります（${shift.start_time}〜）`,
+        sound: true,
+      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+    });
+  } catch { /* ignore */ }
+}
+
+/** シフトに紐づく通知をキャンセルする */
+export async function cancelShiftNotification(id: string): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    await N.cancelScheduledNotificationAsync(`shift_${id}_pre`);
+  } catch { /* ignore */ }
+}
+
+/**
+ * 全シフトの通知を一括再スケジュールする。
+ * fetch() 後に呼ぶことで、削除済みシフトの通知もクリーンアップされる。
+ */
+export async function rescheduleAllShiftNotifications(
+  shifts: ShiftNotificationParams[],
+): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    // shift_ プレフィックスの通知を全てキャンセル
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(n => n.identifier.startsWith('shift_'))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
+    // 未来のシフトを再スケジュール
+    for (const shift of shifts) {
+      await scheduleShiftNotification(shift);
     }
   } catch { /* ignore */ }
 }

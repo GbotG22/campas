@@ -2,8 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
 import { supabase } from '@/lib/supabase';
+import {
+  scheduleEventNotifications,
+  cancelEventNotifications,
+  rescheduleAllEventNotifications,
+} from '@/lib/notifications';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Database, EventType } from '@/types/database';
+
+// 通知対象のイベントタイプ（締切がある・完了できるもの）
+const NOTIFIABLE_TYPES: EventType[] = ['assignment', 'test', 'report'];
 
 export type AppEvent = Database['public']['Tables']['events']['Row'];
 type InsertEvent     = Database['public']['Tables']['events']['Insert'];
@@ -54,6 +62,8 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       } else if (data) {
         set({ events: data });
         AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(data)).catch(() => {});
+        // アプリ起動・再フェッチ時に通知を最新状態へ同期
+        rescheduleAllEventNotifications(data).catch(() => {});
       }
     } catch (e) {
       console.error('[EventsStore] fetch exception:', e);
@@ -80,6 +90,10 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       );
       set({ events: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      // 課題・テスト・レポートは締切通知を自動登録
+      if (NOTIFIABLE_TYPES.includes(data.event_type as EventType)) {
+        scheduleEventNotifications(data).catch(() => {});
+      }
     }
     return error;
   },
@@ -98,6 +112,12 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         .sort((a, b) => a.start_date.localeCompare(b.start_date));
       set({ events: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      // 古い通知を一旦キャンセル（日付・タイトル変更に対応）
+      cancelEventNotifications(id).catch(() => {});
+      // 未完了 & 通知対象タイプなら新しい内容で再スケジュール
+      if (NOTIFIABLE_TYPES.includes(data.event_type as EventType) && !data.is_done) {
+        scheduleEventNotifications(data).catch(() => {});
+      }
     }
     return error;
   },
@@ -114,6 +134,8 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       const next = get().events.filter(e => e.id !== id);
       set({ events: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      // 削除された予定の通知をキャンセル
+      cancelEventNotifications(id).catch(() => {});
     }
     return error;
   },

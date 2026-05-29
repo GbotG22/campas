@@ -3,8 +3,12 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { supabase } from '@/lib/supabase';
-import { initRevenueCat } from '@/lib/revenuecat';
-import { initNotificationHandler, registerNotificationCategories } from '@/lib/notifications';
+import { configureRevenueCat } from '@/lib/revenuecat';
+import {
+  initNotificationHandler,
+  registerNotificationCategories,
+  requestNotificationPermission,
+} from '@/lib/notifications';
 import { useAuthStore } from '@/stores/auth.store';
 import { useEntitlementStore } from '@/stores/entitlement.store';
 
@@ -13,16 +17,17 @@ export default function RootLayout() {
   const { refresh: refreshEntitlements } = useEntitlementStore();
 
   useEffect(() => {
-    // 通知ハンドラー・カテゴリ登録（失敗しても続行）
+    // 通知ハンドラー・カテゴリ登録・権限リクエスト（失敗しても続行）
     initNotificationHandler();
     registerNotificationCategories().catch(() => {});
+    requestNotificationPermission().catch(() => {});
 
     // Supabase セッション取得
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         // RevenueCat 初期化（Expo Go では no-op）
-        initRevenueCat(session.user.id)
+        configureRevenueCat(session.user.id)
           .then(refreshEntitlements)
           .catch(() => {});
       }
@@ -31,7 +36,7 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        initRevenueCat(session.user.id)
+        configureRevenueCat(session.user.id)
           .then(refreshEntitlements)
           .catch(() => {});
       }
