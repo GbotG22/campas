@@ -74,7 +74,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.inner}
       >
-        <Text style={styles.logo}>Campas</Text>
+        <Text style={styles.logo}>Camply</Text>
         <Text style={styles.subtitle}>学生のためのライフ管理アプリ</Text>
 
         <TextInput

@@ -54,7 +54,7 @@ export default function RegisterScreen() {
     // Confirm email が OFF の場合、登録と同時にセッションが作られる。
     // onAuthStateChange → setSession → _layout.tsx が自動でホームへ遷移する。
     // ここでは何もしなくてよい（自動遷移に任せる）。
-    Alert.alert('🎉 登録完了', 'Campasへようこそ！\nホーム画面に移動します。');
+    Alert.alert('🎉 登録完了', 'Camplyへようこそ！\nホーム画面に移動します。');
   }
 
   return (
@@ -64,7 +64,7 @@ export default function RegisterScreen() {
         style={styles.inner}
       >
         {/* ── ロゴ ── */}
-        <Text style={styles.logo}>Campas</Text>
+        <Text style={styles.logo}>Camply</Text>
         <Text style={styles.title}>アカウント作成</Text>
         <Text style={styles.subtitle}>学生生活をもっとスマートに管理しよう</Text>
 

@@ -26,7 +26,7 @@ export default function TermsScreen() {
         <Text style={styles.updated}>最終更新日：2025年5月27日</Text>
 
         <Section title="第1条（本規約の適用）">
-          本利用規約（以下「本規約」）は、Campas（以下「本アプリ」）の利用条件を定めるものです。ユーザーは本規約に同意したうえで本アプリをご利用ください。
+          本利用規約（以下「本規約」）は、Camply（以下「本アプリ」）の利用条件を定めるものです。ユーザーは本規約に同意したうえで本アプリをご利用ください。
         </Section>
 
         <Section title="第2条（サービス内容）">
