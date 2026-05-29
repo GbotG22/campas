@@ -23,7 +23,8 @@
             ]
           }
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCalendarsFullAccessUsageDescription": "スケジュール画面にiPhoneのカレンダー予定を表示するために使用します。"
       }
     },
     "android": {
@@ -40,7 +41,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-dev-client"
+      "expo-dev-client",
+      ["expo-calendar", {
+        "calendarPermission": "スケジュール画面にiPhoneのカレンダー予定を表示するために使用します。"
+      }]
     ],
     "experiments": {
       "typedRoutes": true

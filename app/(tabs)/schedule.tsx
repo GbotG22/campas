@@ -34,6 +34,7 @@ import {
   gCalEventDate, gCalEventTime, gCalEventEndTime,
   IS_EXPO_GO,
 } from '@/hooks/useGoogleCalendar';
+import { useNativeCalendar, NativeCalEvent } from '@/hooks/useNativeCalendar';
 import { useAI, AIScheduleItem } from '@/hooks/useAI';
 import { usePremium } from '@/hooks/usePremium';
 import type { EventType } from '@/types/database';
@@ -41,13 +42,13 @@ import type { EventType } from '@/types/database';
 const TODAY    = new Date().toISOString().split('T')[0];
 const TOMORROW = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })();
 
-/** Googleカレンダーイベントの表示色 */
-const GCAL_COLOR = '#4285F4'; // Google ブルー
+const GCAL_COLOR   = '#4285F4'; // Google ブルー
+const NATIVE_COLOR = '#34C759'; // Apple グリーン
 
 // ── AI対応統一アイテム型 ────────────────────────────────────────────
 interface ScheduleItem {
   id:          string;
-  type:        EventType | 'shift' | 'google';
+  type:        EventType | 'shift' | 'google' | 'native';
   title:       string;
   date:        string;          // YYYY-MM-DD
   time:        string | null;   // HH:MM
@@ -56,8 +57,8 @@ interface ScheduleItem {
   isDone:      boolean;
   color:       string;
   sub:         string | null;   // 補足テキスト（給与見込みなど）
-  source:      'event' | 'shift' | 'google';
-  raw:         AppEvent | ShiftWithWorkplace | GCalEvent;
+  source:      'event' | 'shift' | 'google' | 'native';
+  raw:         AppEvent | ShiftWithWorkplace | GCalEvent | NativeCalEvent;
 }
 
 // 種類グループ（追加モーダルの表示用）
@@ -89,6 +90,11 @@ export default function ScheduleScreen() {
     isLoading: gcalLoading, error: gcalError,
     signIn: gcalSignIn, signOut: gcalSignOut,
   } = useGoogleCalendar();
+  const {
+    nativeEvents, isConnected: nativeConnected,
+    isLoading: nativeLoading, error: nativeError,
+    connect: nativeConnect, disconnect: nativeDisconnect,
+  } = useNativeCalendar();
   const { isAnalyzing, advice, error: aiError, analyze, clear: clearAI } = useAI();
   const { isPremium, isAiPlus } = usePremium();
   const [aiModalVisible, setAiModalVisible] = useState(false);
@@ -141,9 +147,12 @@ export default function ScheduleScreen() {
     });
 
     // Googleカレンダーイベント（読み取り専用）
+    const gCalKeys = new Set<string>();
     gCalEvents.forEach(ev => {
       const date = gCalEventDate(ev);
       if (!date) return;
+      const time = gCalEventTime(ev) ?? 'allday';
+      gCalKeys.add(`${ev.summary ?? ''}:${date}:${time}`);
       result.push({
         id:          `gcal_${ev.id}`,
         type:        'google',
@@ -160,10 +169,30 @@ export default function ScheduleScreen() {
       });
     });
 
+    // 端末カレンダーイベント（読み取り専用、Gカレンダーと重複を除外）
+    nativeEvents.forEach(ev => {
+      const dedupKey = `${ev.title}:${ev.date}:${ev.time ?? 'allday'}`;
+      if (gCalKeys.has(dedupKey)) return;
+      result.push({
+        id:          `native_${ev.id}`,
+        type:        'native',
+        title:       ev.title,
+        date:        ev.date,
+        time:        ev.time,
+        endTime:     ev.endTime,
+        description: ev.notes,
+        isDone:      false,
+        color:       ev.color,
+        sub:         null,
+        source:      'native',
+        raw:         ev,
+      });
+    });
+
     return result.sort((a, b) =>
       a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? ''),
     );
-  }, [events, shifts, gCalEvents]);
+  }, [events, shifts, gCalEvents, nativeEvents]);
 
   // 選択日でフィルタ
   const visibleItems = useMemo(() =>
@@ -255,17 +284,26 @@ export default function ScheduleScreen() {
     analyze(aiItems);
   }
 
-  // 編集モードで開く（Googleイベントは読み取り専用）
+  // 編集モードで開く（Google・端末カレンダーイベントは読み取り専用）
   function openEdit(item: ScheduleItem) {
     if (item.source === 'google') {
-      // 読み取り専用の詳細表示
-      const ev = item.raw as GCalEvent;
       const timeStr = item.time
         ? `${item.time}${item.endTime ? ` 〜 ${item.endTime}` : ''}`
         : '終日';
       const lines = [timeStr];
       if (item.description) lines.push(item.description);
       lines.push('\nGoogleカレンダーのイベントは編集できません。');
+      Alert.alert(item.title, lines.join('\n'), [{ text: '閉じる' }]);
+      return;
+    }
+    if (item.source === 'native') {
+      const ev = item.raw as NativeCalEvent;
+      const timeStr = item.time
+        ? `${item.time}${item.endTime ? ` 〜 ${item.endTime}` : ''}`
+        : '終日';
+      const lines = [`📅 ${ev.calendarTitle}`, timeStr];
+      if (item.description) lines.push(item.description);
+      lines.push('\n端末カレンダーのイベントは編集できません。\niPhoneのカレンダーアプリで編集してください。');
       Alert.alert(item.title, lines.join('\n'), [{ text: '閉じる' }]);
       return;
     }
@@ -425,6 +463,30 @@ export default function ScheduleScreen() {
             </TouchableOpacity>
           )}
 
+          {/* 端末カレンダー連携ボタン */}
+          <TouchableOpacity
+            style={[styles.nativeCalBtn, nativeConnected && styles.nativeCalBtnActive]}
+            onPress={() => {
+              if (nativeConnected) {
+                Alert.alert(
+                  '端末カレンダー',
+                  'iPhoneカレンダーとの連携を解除しますか？',
+                  [
+                    { text: 'キャンセル', style: 'cancel' },
+                    { text: '連携解除', style: 'destructive', onPress: nativeDisconnect },
+                  ],
+                );
+              } else {
+                nativeConnect();
+              }
+            }}
+            disabled={nativeLoading}
+          >
+            <Text style={[styles.nativeCalBtnText, nativeConnected && styles.nativeCalBtnTextActive]}>
+              {nativeLoading ? '…' : nativeConnected ? '🟢 端末中' : '📅 端末'}
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.addBtn} onPress={() => openAdd()}>
             <Text style={styles.addBtnText}>＋ 追加</Text>
           </TouchableOpacity>
@@ -437,6 +499,16 @@ export default function ScheduleScreen() {
           <Text style={styles.gcalErrorText}>⚠️ {gcalError}</Text>
           <TouchableOpacity onPress={gcalSignIn}>
             <Text style={styles.gcalErrorRetry}>再ログイン</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* 端末カレンダー エラーバナー */}
+      {nativeError && (
+        <View style={styles.nativeCalErrorBar}>
+          <Text style={styles.gcalErrorText}>⚠️ {nativeError}</Text>
+          <TouchableOpacity onPress={nativeConnect}>
+            <Text style={styles.gcalErrorRetry}>再試行</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -487,21 +559,23 @@ export default function ScheduleScreen() {
                 <Text style={styles.dateHeader}>{dateSectionLabel(date)}</Text>
               )}
               {dayItems.map(item => {
-                const isGoogle = item.source === 'google';
+                const isReadOnly = item.source === 'google' || item.source === 'native';
                 const cfg = item.type === 'shift'
                   ? { emoji: '💼', label: 'バイト',         color: item.color, bg: '#ECFDF5', canComplete: false }
-                  : isGoogle
+                  : item.source === 'google'
                   ? { emoji: '📅', label: 'Gカレンダー',   color: GCAL_COLOR,  bg: '#EBF3FF', canComplete: false }
+                  : item.source === 'native'
+                  ? { emoji: '📱', label: '端末カレンダー', color: item.color,  bg: '#F0FDF4', canComplete: false }
                   : EVENT_CONFIG[item.type as EventType];
                 return (
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.itemCard, { borderLeftColor: item.color }]}
                     onPress={() => openEdit(item)}
-                    onLongPress={() => !isGoogle && confirmDelete(item)}
+                    onLongPress={() => !isReadOnly && confirmDelete(item)}
                     activeOpacity={0.82}
                   >
-                    {!isGoogle && cfg.canComplete ? (
+                    {!isReadOnly && cfg.canComplete ? (
                       <TouchableOpacity
                         style={[styles.check, item.isDone && { backgroundColor: item.color, borderColor: item.color }]}
                         onPress={() => toggleDone(item.id)}
@@ -522,7 +596,7 @@ export default function ScheduleScreen() {
                             🕐 {item.time}{item.endTime ? ` 〜 ${item.endTime}` : ''}
                           </Text>
                         )}
-                        {!item.time && isGoogle && (
+                        {!item.time && isReadOnly && (
                           <Text style={styles.metaText}>終日</Text>
                         )}
                         {item.sub && <Text style={styles.metaText}>{item.sub}</Text>}
@@ -533,7 +607,7 @@ export default function ScheduleScreen() {
                         <Text style={[styles.typeBadgeText, { color: item.color }]}>{cfg.label}</Text>
                       </View>
                       <Text style={styles.editHint}>
-                        {isGoogle ? '読み取り専用' : 'タップで編集'}
+                        {isReadOnly ? '読み取り専用' : 'タップで編集'}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -776,10 +850,17 @@ const styles = StyleSheet.create({
   gcalBtnDisabled:    { borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.gray50 },
   gcalBtnDisabledText:{ fontSize: 12, fontWeight: '600', color: COLORS.gray400 },
 
+  // 端末カレンダーボタン
+  nativeCalBtn:          { borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1.5, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
+  nativeCalBtnActive:    { borderColor: NATIVE_COLOR, backgroundColor: '#F0FDF4' },
+  nativeCalBtnText:      { fontSize: 12, fontWeight: '700', color: COLORS.gray600 },
+  nativeCalBtnTextActive:{ color: NATIVE_COLOR },
+
   // Googleカレンダー エラーバー
-  gcalErrorBar:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#FEF3C7' },
-  gcalErrorText:  { fontSize: 12, color: '#92400E', flex: 1 },
-  gcalErrorRetry: { fontSize: 12, fontWeight: '700', color: COLORS.primary, paddingLeft: 8 },
+  gcalErrorBar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#FEF3C7' },
+  gcalErrorText:   { fontSize: 12, color: '#92400E', flex: 1 },
+  gcalErrorRetry:  { fontSize: 12, fontWeight: '700', color: COLORS.primary, paddingLeft: 8 },
+  nativeCalErrorBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#DCFCE7' },
 
   // AI モーダル
   aiLoadingWrap:  { alignItems: 'center', paddingVertical: 48 },
