@@ -2,17 +2,47 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePremium } from '@/hooks/usePremium';
+import { IS_REVENUECAT_CONFIGURED } from '@/lib/revenuecat';
 
 // ─────────────────────────────────────────────────────────────
 // 設定画面
 // ─────────────────────────────────────────────────────────────
+const DEV_PREMIUM_KEY  = 'campas_dev_premium';
+const DEV_AI_PLUS_KEY  = 'campas_dev_ai_plus';
+
 export default function SettingsScreen() {
   const { user, signOut, deleteAccount } = useAuthStore();
-  const { isPremium, isAiPlus, isLoading: planLoading } = usePremium();
+  const { isPremium, isAiPlus, isLoading: planLoading, refresh } = usePremium();
+
+  // ── dev フラグ状態（RevenueCat 未構成時のみ使用）────────────
+  const [devPremium, setDevPremium] = useState(false);
+  const [devAiPlus,  setDevAiPlus]  = useState(false);
+
+  useEffect(() => {
+    if (IS_REVENUECAT_CONFIGURED) return;
+    (async () => {
+      const [p, a] = await Promise.all([
+        AsyncStorage.getItem(DEV_PREMIUM_KEY),
+        AsyncStorage.getItem(DEV_AI_PLUS_KEY),
+      ]);
+      setDevPremium(p === 'true');
+      setDevAiPlus(a  === 'true');
+    })();
+  }, []);
+
+  const toggleDevFlag = useCallback(async (key: string, current: boolean) => {
+    const next = !current;
+    await AsyncStorage.setItem(key, String(next));
+    if (key === DEV_PREMIUM_KEY) setDevPremium(next);
+    else                          setDevAiPlus(next);
+    await refresh();
+  }, [refresh]);
 
   // ── ログアウト確認アラート ────────────────────────────────
   function handleLogout() {
@@ -185,6 +215,28 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* ── セクション：テスト用解除（RevenueCat 未構成時のみ表示） ── */}
+        {!IS_REVENUECAT_CONFIGURED && (
+          <>
+            <SectionLabel label="⚙️ 開発テスト（RC未設定時のみ表示）" />
+            <View style={styles.menuCard}>
+              <DevFlagRow
+                label="Premium テスト解除"
+                sublabel="campas_dev_premium"
+                isOn={devPremium}
+                onToggle={() => toggleDevFlag(DEV_PREMIUM_KEY, devPremium)}
+              />
+              <DevFlagRow
+                label="AI Plus テスト解除"
+                sublabel="campas_dev_ai_plus"
+                isOn={devAiPlus}
+                onToggle={() => toggleDevFlag(DEV_AI_PLUS_KEY, devAiPlus)}
+                isLast
+              />
+            </View>
+          </>
+        )}
+
         {/* ── ログアウトボタン ── */}
         <TouchableOpacity
           style={styles.logoutBtn}
@@ -307,6 +359,42 @@ function SettingsRow({
     );
   }
   return inner;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 開発テスト用フラグ行
+// ─────────────────────────────────────────────────────────────
+function DevFlagRow({
+  label, sublabel, isOn, onToggle, isLast = false,
+}: {
+  label:    string;
+  sublabel: string;
+  isOn:     boolean;
+  onToggle: () => void;
+  isLast?:  boolean;
+}) {
+  return (
+    <View style={[styles.row, isLast && styles.rowLast]}>
+      <Ionicons
+        name={isOn ? 'checkmark-circle' : 'ellipse-outline'}
+        size={20}
+        color={isOn ? '#16A34A' : COLORS.gray300}
+      />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.planSublabel}>{sublabel}</Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.devToggleBtn, isOn && styles.devToggleBtnOn]}
+        onPress={onToggle}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Text style={[styles.devToggleBtnText, isOn && styles.devToggleBtnTextOn]}>
+          {isOn ? 'ON  → OFF' : 'OFF → ON'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -457,6 +545,28 @@ const styles = StyleSheet.create({
   planLoadingText: {
     fontSize: 12,
     color: COLORS.gray400,
+  },
+
+  // ── dev フラグトグルボタン ────────────────────────────────
+  devToggleBtn: {
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    backgroundColor: COLORS.gray50,
+  },
+  devToggleBtnOn: {
+    borderColor: '#16A34A',
+    backgroundColor: '#DCFCE7',
+  },
+  devToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: COLORS.gray400,
+  },
+  devToggleBtnTextOn: {
+    color: '#16A34A',
   },
 
   // ── アカウント削除ボタン（目立たせすぎない）────────────────
