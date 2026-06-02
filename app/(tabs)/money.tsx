@@ -19,6 +19,7 @@ import type { ShiftWithWorkplace } from '@/hooks/useShifts';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useWorkplaces, WORKPLACE_COLORS } from '@/hooks/useWorkplaces';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
+import { getNextPayday } from '@/lib/payPeriod';
 import type { Database, IncomeType } from '@/types/database';
 type Expense = Database['public']['Tables']['expenses']['Row'];
 
@@ -51,6 +52,12 @@ function formatPaySchedule(closingDay: number, offset: number, paydayDay: number
   const c = closingDay === 31 ? '月末締め' : `${closingDay}日締め`;
   const d = paydayDay  === 31 ? '末日'     : `${paydayDay}日`;
   return `${c} → ${offset === 0 ? '当月' : '翌月'}${d}払い`;
+}
+
+function formatDateJP(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dow = ['日', '月', '火', '水', '木', '金', '土'][new Date(y, m - 1, d).getDay()];
+  return `${m}月${d}日（${dow}）`;
 }
 
 // ── 収支タブ型 ─────────────────────────────────────────────
@@ -89,7 +96,7 @@ export default function MoneyScreen() {
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subTotal } = useSubscriptions();
   const { incomes, salaryRecords: salaryRecordsRaw, isLoading: incLoading, addIncome, deleteIncome, addSalaryRecord, deleteSalaryRecord } = useIncomes();
   const { workplaces, isLoading: wpLoading, addWorkplace, updateWorkplace, deleteWorkplace } = useWorkplaces();
-  const { shifts, isLoading: shiftLoading, addShift, updateShift, deleteShift, getForMonth, getMonthlyEstimate } = useShifts();
+  const { shifts, isLoading: shiftLoading, addShift, updateShift, deleteShift, getForMonth } = useShifts();
 
   const salaryRecords = salaryRecordsRaw as unknown as SalaryRecord[];
 
@@ -357,7 +364,6 @@ export default function MoneyScreen() {
   const selMonthIncomes    = useMemo(() => incomes.filter(i => i.received_at.startsWith(selYM)), [incomes, selYM]);
   const monthlyIncomeTotal = useMemo(() => selMonthIncomes.reduce((s, i) => s + i.amount, 0), [selMonthIncomes]);
   const thisMonthShifts    = getForMonth(selYear, selMonth);
-  const monthlyEstimate    = getMonthlyEstimate(selYear, selMonth);
 
   const isLoading = expLoading || subLoading || incLoading || wpLoading || shiftLoading;
 
@@ -366,7 +372,7 @@ export default function MoneyScreen() {
     if (tab === 'expenses')           openAddExpModal();
     else if (tab === 'subscriptions') openSubModal();
     else if (tab === 'incomes')       openAddIncModal();
-    else if (tab === 'salary')        openShiftModal();
+    else if (tab === 'salary')        openSalaryModal();
   }
 
   return (
@@ -422,7 +428,7 @@ export default function MoneyScreen() {
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
-          {tab === 'salary'        && <SalaryTab workplaces={workplaces} monthlyEstimate={monthlyEstimate} thisMonthShifts={thisMonthShifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddShift={openShiftModal} onEditShift={openEditShiftModal} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
+          {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
         </>
       )}
 
@@ -969,45 +975,134 @@ function IncomesTab({ incomes, monthlyTotal, monthLabel, onDelete }: {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 給料タブ
+// 給料タブ（集計・確認専用）
 // ─────────────────────────────────────────────────────────────
-function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords, monthLabel, onAddWorkplace, onEditWorkplace, onDeleteWorkplace, onAddShift, onEditShift, onAddSalary, onDeleteSalary }: {
+function SalaryTab({
+  workplaces, thisMonthShifts, allShifts, salaryRecords, monthLabel,
+  onAddWorkplace, onEditWorkplace, onDeleteWorkplace, onAddSalary, onDeleteSalary,
+}: {
   workplaces: Workplace[];
-  monthlyEstimate: number;
   thisMonthShifts: ShiftWithWorkplace[];
+  allShifts: ShiftWithWorkplace[];
   salaryRecords: SalaryRecord[];
   monthLabel: string;
   onAddWorkplace: () => void;
   onEditWorkplace: (w: Workplace) => void;
   onDeleteWorkplace: (id: string) => void;
-  onAddShift: () => void;
-  onEditShift: (s: ShiftWithWorkplace) => void;
   onAddSalary: () => void;
   onDeleteSalary: (id: string) => void;
 }) {
-  const totalWorkMinutes = thisMonthShifts.reduce(
-    (sum, s) => sum + calcWorkMinutes(s.start_time, s.end_time, s.break_minutes), 0,
-  );
+  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // バイト先ごとの「次の給料」カード（シフトがある期間のみ表示）
+  const nextPayCards = useMemo(() => workplaces.map(wp => {
+    const period = getNextPayday(today, wp.closing_day ?? 31, wp.payday_month_offset ?? 1, wp.payday_day ?? 25);
+    const ps = allShifts.filter(s =>
+      s.workplace_id === wp.id &&
+      s.date >= period.periodStart &&
+      s.date <= period.periodEnd,
+    );
+    return {
+      workplace: wp, period,
+      count:        ps.length,
+      totalMinutes: ps.reduce((sum, s) => sum + calcWorkMinutes(s.start_time, s.end_time, s.break_minutes), 0),
+      totalWage:    ps.reduce((sum, s) => sum + (s.estimated_wage ?? 0), 0),
+    };
+  }).filter(c => c.count > 0), [workplaces, allShifts, today]);
+
+  // 選択月のバイト先別内訳
+  const monthSummaries = useMemo(() => workplaces.map(wp => {
+    const ws = thisMonthShifts.filter(s => s.workplace_id === wp.id);
+    return {
+      workplace: wp,
+      count:        ws.length,
+      totalMinutes: ws.reduce((sum, s) => sum + calcWorkMinutes(s.start_time, s.end_time, s.break_minutes), 0),
+      totalWage:    ws.reduce((sum, s) => sum + (s.estimated_wage ?? 0), 0),
+    };
+  }).filter(s => s.count > 0), [workplaces, thisMonthShifts]);
+
+  const totalMinutes = thisMonthShifts.reduce((sum, s) => sum + calcWorkMinutes(s.start_time, s.end_time, s.break_minutes), 0);
+  const totalWage    = thisMonthShifts.reduce((sum, s) => sum + (s.estimated_wage ?? 0), 0);
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-      {/* 今月見込み */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summarySubLabel}>{monthLabel}の給与見込み</Text>
-        <Text style={[styles.summaryAmount, { color: '#6366F1' }]}>¥{monthlyEstimate.toLocaleString()}</Text>
-        <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
-          <Text style={{ fontSize: 13, color: COLORS.gray500, fontWeight: '600' }}>
-            {thisMonthShifts.length}回
-          </Text>
-          {totalWorkMinutes > 0 && (
-            <Text style={{ fontSize: 13, color: COLORS.gray500, fontWeight: '600' }}>
-              {formatMinutes(totalWorkMinutes)}
-            </Text>
+
+      {/* ── 次の給料 ── */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>次の給料</Text>
+      </View>
+      {workplaces.length === 0 ? (
+        <Empty emoji="🏢" text="バイト先を登録してください" />
+      ) : nextPayCards.length === 0 ? (
+        <View style={[styles.card, { alignItems: 'center', paddingVertical: SPACING.lg }]}>
+          <Text style={{ fontSize: 13, color: COLORS.gray400 }}>近い給与期間にシフトが登録されていません</Text>
+          <Text style={{ fontSize: 11, color: COLORS.gray300, marginTop: 4 }}>予定画面からシフトを追加してください</Text>
+        </View>
+      ) : nextPayCards.map(({ workplace: wp, period, count, totalMinutes: mins, totalWage: wage }) => (
+        <View key={wp.id} style={[styles.card, styles.nextPayCard, { borderLeftColor: wp.color }]}>
+          {/* ヘッダー: バイト先名 + 入金予定日 */}
+          <View style={styles.nextPayHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: wp.color }} />
+              <Text style={styles.nextPayName}>{wp.name}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.nextPaydayLabel}>入金予定</Text>
+              <Text style={styles.nextPaydayDate}>{formatDateJP(period.payday)}</Text>
+            </View>
+          </View>
+          {/* 入金予定額 */}
+          <Text style={styles.nextPayAmount}>¥{wage.toLocaleString()}</Text>
+          {/* 対象期間 */}
+          <View style={styles.payInfoRow}>
+            <Text style={styles.payInfoKey}>対象期間</Text>
+            <Text style={styles.payInfoVal}>{formatDateJP(period.periodStart)} 〜 {formatDateJP(period.periodEnd)}</Text>
+          </View>
+          {/* 勤務回数・時間 */}
+          <View style={styles.payInfoRow}>
+            <Text style={styles.payInfoKey}>勤務</Text>
+            <Text style={styles.payInfoVal}>{count}回{mins > 0 ? `　${formatMinutes(mins)}` : ''}</Text>
+          </View>
+        </View>
+      ))}
+
+      {/* ── 選択月の勤務サマリー ── */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{monthLabel}の勤務</Text>
+      </View>
+      {thisMonthShifts.length === 0 ? (
+        <Empty emoji="📅" text="この月のシフトはまだありません" />
+      ) : (
+        <View style={styles.summaryCard}>
+          <Text style={styles.summarySubLabel}>合計給与見込み</Text>
+          <Text style={[styles.summaryAmount, { color: '#6366F1' }]}>¥{totalWage.toLocaleString()}</Text>
+          <View style={{ flexDirection: 'row', gap: 16, marginTop: 6 }}>
+            <Text style={{ fontSize: 13, color: COLORS.gray500, fontWeight: '600' }}>{thisMonthShifts.length}回</Text>
+            {totalMinutes > 0 && (
+              <Text style={{ fontSize: 13, color: COLORS.gray500, fontWeight: '600' }}>{formatMinutes(totalMinutes)}</Text>
+            )}
+          </View>
+          {/* バイト先別内訳（2件以上のとき） */}
+          {monthSummaries.length > 1 && (
+            <>
+              <View style={styles.breakdownDivider} />
+              {monthSummaries.map(({ workplace: wp, count, totalMinutes: mins, totalWage: wage }) => (
+                <View key={wp.id} style={styles.breakdownRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: wp.color }} />
+                    <Text style={styles.breakdownName}>{wp.name}</Text>
+                  </View>
+                  <Text style={styles.breakdownMeta}>{count}回</Text>
+                  <Text style={styles.breakdownMeta}>{mins > 0 ? formatMinutes(mins) : '—'}</Text>
+                  <Text style={styles.breakdownWage}>¥{wage.toLocaleString()}</Text>
+                </View>
+              ))}
+            </>
           )}
         </View>
-      </View>
+      )}
 
-      {/* バイト先一覧 */}
+      {/* ── バイト先 ── */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>バイト先</Text>
         <TouchableOpacity style={styles.sectionAddBtn} onPress={onAddWorkplace}>
@@ -1035,31 +1130,7 @@ function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords
         </TouchableOpacity>
       ))}
 
-      {/* 今月のシフト */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{monthLabel}のシフト</Text>
-        <TouchableOpacity style={styles.sectionAddBtn} onPress={onAddShift}>
-          <Text style={styles.sectionAddBtnText}>＋ 追加</Text>
-        </TouchableOpacity>
-      </View>
-      {thisMonthShifts.length === 0 ? (
-        <Empty emoji="📅" text="シフトがありません" />
-      ) : thisMonthShifts.map(s => (
-        <TouchableOpacity key={s.id} style={[styles.row, { borderLeftWidth: 3, borderLeftColor: s.workplace?.color ?? COLORS.primary }]} onPress={() => onEditShift(s)} activeOpacity={0.75}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>{s.workplace?.name ?? 'バイト'}</Text>
-            <Text style={styles.rowMeta}>{s.date}  {s.start_time} 〜 {s.end_time}</Text>
-            {s.note ? <Text style={styles.rowMeta}>{s.note}</Text> : null}
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 2 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.gray900 }}>¥{(s.estimated_wage ?? 0).toLocaleString()}</Text>
-            <Text style={styles.rowMeta}>{formatMinutes(calcWorkMinutes(s.start_time, s.end_time, s.break_minutes))}</Text>
-            <Text style={styles.rowEditHint}>タップで編集</Text>
-          </View>
-        </TouchableOpacity>
-      ))}
-
-      {/* 給与記録 */}
+      {/* ── 給与記録（実績） ── */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>給与記録（実績）</Text>
         <TouchableOpacity style={styles.sectionAddBtn} onPress={onAddSalary}>
@@ -1203,6 +1274,32 @@ const styles = StyleSheet.create({
 
   // 支出行の編集ヒント
   rowEditHint: { fontSize: 10, color: COLORS.gray300, marginTop: 2 },
+
+  // ── 次の給料カード ────────────────────────────────────────
+  nextPayCard: {
+    borderLeftWidth: 4,
+    paddingLeft: SPACING.md,
+  },
+  nextPayHeader: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    alignItems:     'flex-start',
+    marginBottom:   10,
+  },
+  nextPayName:      { fontSize: 15, fontWeight: '700', color: COLORS.gray900 },
+  nextPaydayLabel:  { fontSize: 10, color: COLORS.gray400, fontWeight: '600', textAlign: 'right' },
+  nextPaydayDate:   { fontSize: 13, fontWeight: '700', color: '#6366F1', textAlign: 'right' },
+  nextPayAmount:    { fontSize: 30, fontWeight: '800', color: COLORS.gray900, marginBottom: 10 },
+  payInfoRow:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  payInfoKey:       { fontSize: 11, color: COLORS.gray400, fontWeight: '600', width: 52 },
+  payInfoVal:       { fontSize: 12, color: COLORS.gray600, fontWeight: '500', flex: 1 },
+
+  // ── 勤務サマリー内訳 ──────────────────────────────────────
+  breakdownDivider: { height: 1, backgroundColor: COLORS.gray100, marginTop: 14, marginBottom: 10 },
+  breakdownRow:     { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, gap: 6 },
+  breakdownName:    { fontSize: 13, fontWeight: '600', color: COLORS.gray700, flex: 1 },
+  breakdownMeta:    { fontSize: 12, color: COLORS.gray500, width: 60, textAlign: 'right' },
+  breakdownWage:    { fontSize: 13, fontWeight: '700', color: COLORS.gray900, width: 72, textAlign: 'right' },
 
   // モーダル内削除ボタン
   deleteModalBtn:     { marginTop: SPACING.lg, marginBottom: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: '#FEF2F2', alignItems: 'center' },
