@@ -4,6 +4,7 @@
  * Expo Go で native module が利用できない場合でもクラッシュしないようにする
  */
 import type { Database } from '@/types/database';
+import { getNotificationSettings } from '@/lib/notificationSettings';
 
 type Assignment   = Database['public']['Tables']['assignments']['Row'];
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
@@ -82,6 +83,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 export async function scheduleAssignmentNotifications(a: Assignment) {
   if (!a.due_date) return;
+  const settings = await getNotificationSettings();
+  if (!settings.events) return;
   const N = getNotifications();
   if (!N) return;
 
@@ -178,6 +181,8 @@ export function daysUntilRenewal(renewalDay: number): number {
 /** サブスク更新3日前の通知をスケジュール */
 export async function scheduleSubscriptionNotification(sub: Subscription) {
   try {
+    const settings = await getNotificationSettings();
+    if (!settings.subscriptions) return;
     const N = getNotifications();
     if (!N) return;
     const next = getNextRenewalDate(sub.renewal_day);
@@ -203,6 +208,8 @@ export async function scheduleSubscriptionNotification(sub: Subscription) {
 /** 3ヶ月間支出がないサブスクの通知 */
 export async function scheduleUnusedSubscriptionNotification(sub: Subscription) {
   try {
+    const settings = await getNotificationSettings();
+    if (!settings.subscriptions) return;
     const N = getNotifications();
     if (!N) return;
     const date = new Date(Date.now() + 5 * 60 * 1000);
@@ -271,6 +278,8 @@ export async function rescheduleSubscriptionNotifications(
 export async function scheduleEventNotifications(event: AppEvent): Promise<void> {
   if (!isNotifiableEventType(event.event_type)) return;
   if (!event.start_date) return;
+  const settings = await getNotificationSettings();
+  if (!settings.events) return;
   const N = getNotifications();
   if (!N) return;
 
@@ -372,6 +381,8 @@ export async function scheduleShiftNotification(
   shift: ShiftNotificationParams,
 ): Promise<void> {
   try {
+    const settings = await getNotificationSettings();
+    if (!settings.shifts) return;
     const N = getNotifications();
     if (!N) return;
 

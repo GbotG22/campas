@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -10,6 +10,11 @@ import { useAuthStore } from '@/stores/auth.store';
 import { usePremium } from '@/hooks/usePremium';
 import { IS_REVENUECAT_CONFIGURED } from '@/lib/revenuecat';
 import { supabase } from '@/lib/supabase';
+import {
+  getNotificationSettings,
+  setNotificationSetting,
+  type NotificationSettings,
+} from '@/lib/notificationSettings';
 
 // ─────────────────────────────────────────────────────────────
 // 設定画面
@@ -36,6 +41,21 @@ export default function SettingsScreen() {
       setDevAiPlus(a  === 'true');
     })();
   }, []);
+
+  // ── 通知設定状態 ─────────────────────────────────────────
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
+    shifts: true, subscriptions: true, events: true,
+  });
+
+  useEffect(() => {
+    getNotificationSettings().then(setNotifSettings);
+  }, []);
+
+  async function toggleNotif(category: keyof NotificationSettings) {
+    const next = { ...notifSettings, [category]: !notifSettings[category] };
+    setNotifSettings(next);
+    await setNotificationSetting(category, next[category]);
+  }
 
   const toggleDevFlag = useCallback(async (key: string, current: boolean) => {
     const next = !current;
@@ -204,6 +224,33 @@ export default function SettingsScreen() {
             icon="key-outline"
             label="パスワードを変更する"
             onPress={handlePasswordChange}
+            isLast
+          />
+        </View>
+
+        {/* ── セクション：通知設定 ── */}
+        <SectionLabel label="通知設定" />
+        <View style={styles.menuCard}>
+          <SwitchRow
+            icon="notifications-outline"
+            label="シフト通知"
+            sublabel="バイト開始30分前"
+            value={notifSettings.shifts}
+            onToggle={() => toggleNotif('shifts')}
+          />
+          <SwitchRow
+            icon="card-outline"
+            label="サブスク通知"
+            sublabel="更新日の3日前"
+            value={notifSettings.subscriptions}
+            onToggle={() => toggleNotif('subscriptions')}
+          />
+          <SwitchRow
+            icon="school-outline"
+            label="課題・テスト通知"
+            sublabel="締切の3日前・前日・当日"
+            value={notifSettings.events}
+            onToggle={() => toggleNotif('events')}
             isLast
           />
         </View>
@@ -384,6 +431,36 @@ function SettingsRow({
     );
   }
   return inner;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 通知設定 Switch 行
+// ─────────────────────────────────────────────────────────────
+function SwitchRow({
+  icon, label, sublabel, value, onToggle, isLast = false,
+}: {
+  icon:     keyof typeof Ionicons.glyphMap;
+  label:    string;
+  sublabel: string;
+  value:    boolean;
+  onToggle: () => void;
+  isLast?:  boolean;
+}) {
+  return (
+    <View style={[styles.row, isLast && styles.rowLast]}>
+      <Ionicons name={icon} size={20} color={COLORS.gray400} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={styles.planSublabel}>{sublabel}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: COLORS.gray200, true: COLORS.primary + '80' }}
+        thumbColor={value ? COLORS.primary : COLORS.gray400}
+      />
+    </View>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────
