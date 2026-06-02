@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const { user }  = useAuthStore();
   const { monthlyTotal: subTotal }                          = useSubscriptions();
   const { events, getForDate: getEvents, getUpcoming, toggleDone } = useEvents();
-  const { shifts, getForDate: getShifts }                   = useShifts();
+  const { shifts, getForDate: getShifts, getNextShift }      = useShifts();
   const { getMonthlyTotal }                                 = useIncomes();
   const { slots }                                           = useTimetable();
   const { expenses }                                        = useExpenses();
@@ -79,6 +79,15 @@ export default function HomeScreen() {
   const todayDeadlines    = upcoming.filter(e => e.start_date === todayStr);
   const upcomingDeadlines = upcoming.filter(e => e.start_date > todayStr);
 
+  // ── 次回勤務 ──────────────────────────────────────────────
+  const nextShift = getNextShift();
+  const nextShiftDays = nextShift ? (() => {
+    const d = new Date(nextShift.date + 'T00:00:00');
+    const t = new Date(todayStr + 'T00:00:00');
+    return Math.ceil((d.getTime() - t.getTime()) / 86400000);
+  })() : 0;
+  const nextShiftDayLabel = !nextShift ? '' : nextShiftDays === 0 ? '今日' : nextShiftDays === 1 ? '明日' : `${nextShiftDays}日後`;
+
   // ── 今月の収支 ────────────────────────────────────────────
   const thisYM      = getYM(today);
   const monthIncome = getMonthlyTotal(thisYM);
@@ -110,6 +119,36 @@ export default function HomeScreen() {
             {fmt(today)}（{['日', '月', '火', '水', '木', '金', '土'][today.getDay()]}）
           </Text>
         </View>
+
+        {/* ── 次のシフト ── */}
+        {nextShift && (
+          <View style={[styles.card, styles.nextShiftCard]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.sectionTitle}>次のシフト</Text>
+              <View style={[styles.nextShiftBadge, { backgroundColor: nextShiftDays <= 1 ? COLORS.successLight : COLORS.gray100 }]}>
+                <Text style={[styles.nextShiftBadgeText, { color: nextShiftDays <= 1 ? COLORS.success : COLORS.gray600 }]}>
+                  {nextShiftDayLabel}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.eventRow, { borderLeftColor: nextShift.workplace?.color ?? COLORS.success, marginBottom: 0 }]}>
+              <Text style={styles.eventEmoji}>💼</Text>
+              <View style={styles.eventBody}>
+                <Text style={styles.eventTitle}>{nextShift.workplace?.name ?? 'バイト'}</Text>
+                <Text style={styles.eventMeta}>
+                  {(() => {
+                    const d = new Date(nextShift.date + 'T00:00:00');
+                    const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+                    return `${d.getMonth() + 1}月${d.getDate()}日（${dow}）  ${nextShift.start_time} 〜 ${nextShift.end_time}`;
+                  })()}
+                </Text>
+                <Text style={[styles.eventMeta, { color: COLORS.success, fontWeight: '600', marginTop: 2 }]}>
+                  予想 ¥{(nextShift.estimated_wage ?? 0).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* ── カレンダー ── */}
         <View style={styles.calCard}>
@@ -468,6 +507,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   countdownText: { fontSize: 12, fontWeight: '700' },
+
+  // ── 次のシフト ────────────────────────────────────────────
+  nextShiftCard: {
+    borderWidth: 1,
+    borderColor: COLORS.gray100,
+  },
+  nextShiftBadge: {
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: 3,
+  },
+  nextShiftBadgeText: { fontSize: 12, fontWeight: '700' },
 
   // ── 収支グリッド ──────────────────────────────────────────
   moneyGrid: {

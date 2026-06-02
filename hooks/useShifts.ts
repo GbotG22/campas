@@ -37,6 +37,7 @@ export function useShifts() {
     getForMonth:       store.getForMonth,
     getMonthlyEstimate:store.getMonthlyEstimate,
     getForDate:        store.getForDate,
+    getNextShift:      store.getNextShift,
 
     refresh: store.fetch,
   };

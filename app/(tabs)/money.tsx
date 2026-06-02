@@ -15,6 +15,7 @@ import { resolveServiceIcon } from '@/constants/serviceIcons';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useIncomes, INCOME_TYPE_CONFIG } from '@/hooks/useIncomes';
 import { useShifts, calcWage, formatMinutes, calcWorkMinutes } from '@/hooks/useShifts';
+import type { ShiftWithWorkplace } from '@/hooks/useShifts';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useWorkplaces, WORKPLACE_COLORS } from '@/hooks/useWorkplaces';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
@@ -78,7 +79,7 @@ export default function MoneyScreen() {
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subTotal } = useSubscriptions();
   const { incomes, salaryRecords: salaryRecordsRaw, isLoading: incLoading, addIncome, deleteIncome, addSalaryRecord, deleteSalaryRecord } = useIncomes();
   const { workplaces, isLoading: wpLoading, addWorkplace, updateWorkplace, deleteWorkplace } = useWorkplaces();
-  const { shifts, isLoading: shiftLoading, addShift, deleteShift, getForMonth, getMonthlyEstimate } = useShifts();
+  const { shifts, isLoading: shiftLoading, addShift, updateShift, deleteShift, getForMonth, getMonthlyEstimate } = useShifts();
 
   const salaryRecords = salaryRecordsRaw as unknown as SalaryRecord[];
 
@@ -244,22 +245,36 @@ export default function MoneyScreen() {
     if (err) Alert.alert('エラー', err.message); else setWpModal(false);
   }
 
-  // ── シフト追加モーダル ────────────────────────────────────
-  const [shiftModal, setShiftModal]   = useState(false);
-  const [sfWpId, setSfWpId]           = useState('');
-  const [sfDate, setSfDate]           = useState(now.toISOString().split('T')[0]);
-  const [sfStart, setSfStart]         = useState('09:00');
-  const [sfEnd, setSfEnd]             = useState('18:00');
-  const [sfBreak, setSfBreak]         = useState('60');
-  const [sfNote, setSfNote]           = useState('');
-  const [sfSaving, setSfSaving]       = useState(false);
+  // ── シフト追加 / 編集モーダル ─────────────────────────────
+  const [shiftModal, setShiftModal]       = useState(false);
+  const [editingShift, setEditingShift]   = useState<ShiftWithWorkplace | null>(null);
+  const [sfWpId, setSfWpId]               = useState('');
+  const [sfDate, setSfDate]               = useState(now.toISOString().split('T')[0]);
+  const [sfStart, setSfStart]             = useState('09:00');
+  const [sfEnd, setSfEnd]                 = useState('18:00');
+  const [sfBreak, setSfBreak]             = useState('60');
+  const [sfNote, setSfNote]               = useState('');
+  const [sfSaving, setSfSaving]           = useState(false);
 
   function openShiftModal() {
+    setEditingShift(null);
     setSfWpId(workplaces[0]?.id ?? '');
     setSfDate(now.toISOString().split('T')[0]);
     setSfStart('09:00'); setSfEnd('18:00'); setSfBreak('60'); setSfNote('');
     setShiftModal(true);
   }
+
+  function openEditShiftModal(shift: ShiftWithWorkplace) {
+    setEditingShift(shift);
+    setSfWpId(shift.workplace_id);
+    setSfDate(shift.date);
+    setSfStart(shift.start_time);
+    setSfEnd(shift.end_time);
+    setSfBreak(String(shift.break_minutes ?? 0));
+    setSfNote(shift.note ?? '');
+    setShiftModal(true);
+  }
+
   const shiftWagePreview = useMemo(() => {
     const wp = workplaces.find(w => w.id === sfWpId);
     if (!wp) return null;
@@ -270,14 +285,25 @@ export default function MoneyScreen() {
     } catch { return null; }
   }, [sfWpId, sfStart, sfEnd, sfBreak, workplaces]);
 
-  async function handleAddShift() {
+  async function handleSaveShift() {
     if (!sfWpId) { Alert.alert('入力エラー', 'バイト先を選択してください'); return; }
     const wp = workplaces.find(w => w.id === sfWpId);
     if (!wp) return;
     setSfSaving(true);
-    const err = await addShift({ workplace_id: sfWpId, date: sfDate, start_time: sfStart, end_time: sfEnd, break_minutes: parseInt(sfBreak, 10) || 0, note: sfNote.trim() || null }, wp.hourly_wage);
+    const payload = { workplace_id: sfWpId, date: sfDate, start_time: sfStart, end_time: sfEnd, break_minutes: parseInt(sfBreak, 10) || 0, note: sfNote.trim() || null };
+    const err = editingShift
+      ? await updateShift(editingShift.id, payload, wp.hourly_wage)
+      : await addShift(payload, wp.hourly_wage);
     setSfSaving(false);
     if (err) Alert.alert('エラー', err.message); else setShiftModal(false);
+  }
+
+  function confirmDeleteShift() {
+    if (!editingShift) return;
+    Alert.alert('削除', `${editingShift.workplace?.name ?? 'バイト'}（${editingShift.date}）を削除しますか？`, [
+      { text: 'キャンセル', style: 'cancel' },
+      { text: '削除', style: 'destructive', onPress: async () => { await deleteShift(editingShift.id); setShiftModal(false); } },
+    ]);
   }
 
   // ── 給与記録追加モーダル ──────────────────────────────────
@@ -376,7 +402,7 @@ export default function MoneyScreen() {
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
-          {tab === 'salary'        && <SalaryTab workplaces={workplaces} monthlyEstimate={monthlyEstimate} thisMonthShifts={thisMonthShifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddShift={openShiftModal} onDeleteShift={id => Alert.alert('削除', 'シフトを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteShift(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
+          {tab === 'salary'        && <SalaryTab workplaces={workplaces} monthlyEstimate={monthlyEstimate} thisMonthShifts={thisMonthShifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddShift={openShiftModal} onEditShift={openEditShiftModal} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
         </>
       )}
 
@@ -508,7 +534,7 @@ export default function MoneyScreen() {
       <Modal visible={shiftModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-            <ModalHeader title="シフトを追加" onCancel={() => setShiftModal(false)} onSave={handleAddShift} saveLabel={sfSaving ? '保存中...' : '追加'} disabled={sfSaving} />
+            <ModalHeader title={editingShift ? 'シフトを編集' : 'シフトを追加'} onCancel={() => setShiftModal(false)} onSave={handleSaveShift} saveLabel={sfSaving ? '保存中...' : editingShift ? '更新' : '追加'} disabled={sfSaving} />
             <ScrollView style={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               {workplaces.length === 0 ? (
                 <View style={styles.empty}>
@@ -539,6 +565,11 @@ export default function MoneyScreen() {
                   )}
                   <Text style={styles.inputLabel}>メモ（任意）</Text>
                   <TextInput style={[styles.input, { height: 72, textAlignVertical: 'top' }]} placeholder="例: 早番" value={sfNote} onChangeText={setSfNote} multiline />
+                  {editingShift && (
+                    <TouchableOpacity style={styles.deleteModalBtn} onPress={confirmDeleteShift}>
+                      <Text style={styles.deleteModalBtnText}>🗑 このシフトを削除する</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
             </ScrollView>
@@ -896,27 +927,40 @@ function IncomesTab({ incomes, monthlyTotal, monthLabel, onDelete }: {
 // ─────────────────────────────────────────────────────────────
 // 給料タブ
 // ─────────────────────────────────────────────────────────────
-function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords, monthLabel, onAddWorkplace, onEditWorkplace, onDeleteWorkplace, onAddShift, onDeleteShift, onAddSalary, onDeleteSalary }: {
+function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords, monthLabel, onAddWorkplace, onEditWorkplace, onDeleteWorkplace, onAddShift, onEditShift, onAddSalary, onDeleteSalary }: {
   workplaces: Workplace[];
   monthlyEstimate: number;
-  thisMonthShifts: import('@/hooks/useShifts').ShiftWithWorkplace[];
+  thisMonthShifts: ShiftWithWorkplace[];
   salaryRecords: SalaryRecord[];
   monthLabel: string;
   onAddWorkplace: () => void;
   onEditWorkplace: (w: Workplace) => void;
   onDeleteWorkplace: (id: string) => void;
   onAddShift: () => void;
-  onDeleteShift: (id: string) => void;
+  onEditShift: (s: ShiftWithWorkplace) => void;
   onAddSalary: () => void;
   onDeleteSalary: (id: string) => void;
 }) {
+  const totalWorkMinutes = thisMonthShifts.reduce(
+    (sum, s) => sum + calcWorkMinutes(s.start_time, s.end_time, s.break_minutes), 0,
+  );
+
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
       {/* 今月見込み */}
       <View style={styles.summaryCard}>
         <Text style={styles.summarySubLabel}>{monthLabel}の給与見込み</Text>
         <Text style={[styles.summaryAmount, { color: '#6366F1' }]}>¥{monthlyEstimate.toLocaleString()}</Text>
-        <Text style={{ fontSize: 12, color: COLORS.gray400, marginTop: 4 }}>シフト {thisMonthShifts.length}件</Text>
+        <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+          <Text style={{ fontSize: 13, color: COLORS.gray500, fontWeight: '600' }}>
+            {thisMonthShifts.length}回
+          </Text>
+          {totalWorkMinutes > 0 && (
+            <Text style={{ fontSize: 13, color: COLORS.gray500, fontWeight: '600' }}>
+              {formatMinutes(totalWorkMinutes)}
+            </Text>
+          )}
+        </View>
       </View>
 
       {/* バイト先一覧 */}
@@ -956,20 +1000,18 @@ function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords
       {thisMonthShifts.length === 0 ? (
         <Empty emoji="📅" text="シフトがありません" />
       ) : thisMonthShifts.map(s => (
-        <View key={s.id} style={[styles.row, { borderLeftWidth: 3, borderLeftColor: s.workplace?.color ?? COLORS.primary }]}>
+        <TouchableOpacity key={s.id} style={[styles.row, { borderLeftWidth: 3, borderLeftColor: s.workplace?.color ?? COLORS.primary }]} onPress={() => onEditShift(s)} activeOpacity={0.75}>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{s.workplace?.name ?? 'バイト'}</Text>
             <Text style={styles.rowMeta}>{s.date}  {s.start_time} 〜 {s.end_time}</Text>
             {s.note ? <Text style={styles.rowMeta}>{s.note}</Text> : null}
           </View>
-          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={{ alignItems: 'flex-end', gap: 2 }}>
             <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.gray900 }}>¥{(s.estimated_wage ?? 0).toLocaleString()}</Text>
             <Text style={styles.rowMeta}>{formatMinutes(calcWorkMinutes(s.start_time, s.end_time, s.break_minutes))}</Text>
-            <TouchableOpacity style={styles.deleteRowBtn} onPress={() => onDeleteShift(s.id)}>
-              <Text style={styles.deleteRowBtnText}>削除</Text>
-            </TouchableOpacity>
+            <Text style={styles.rowEditHint}>タップで編集</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
 
       {/* 給与記録 */}

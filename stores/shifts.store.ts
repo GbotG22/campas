@@ -50,6 +50,7 @@ interface ShiftsState {
   getForMonth:      (year: number, month: number) => ShiftWithWorkplace[];
   getMonthlyEstimate:(year: number, month: number) => number;
   getForDate:       (date: string) => ShiftWithWorkplace[];
+  getNextShift:     () => ShiftWithWorkplace | null;
 }
 
 export const useShiftsStore = create<ShiftsState>((set, get) => ({
@@ -186,4 +187,9 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
     get().getForMonth(year, month).reduce((sum, s) => sum + (s.estimated_wage ?? 0), 0),
   getForDate: (date) =>
     get().shifts.filter(s => s.date === date),
+  getNextShift: () => {
+    const today = new Date().toISOString().split('T')[0];
+    const upcoming = get().shifts.filter(s => s.date >= today);
+    return upcoming.length > 0 ? upcoming[0] : null;
+  },
 }));
