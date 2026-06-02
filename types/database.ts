@@ -80,43 +80,52 @@ export type Database = {
       // ──────────────────────────────────────────
       workplaces: {
         Row: {
-          id:              string;
-          user_id:         string;
-          name:            string;
-          hourly_wage:     number;
-          color:           string;
-          note:            string | null;
-          is_active:       boolean;
-          external_source: ExternalSource;
-          external_id:     string | null;
-          created_at:      string;
-          updated_at:      string;
+          id:                   string;
+          user_id:              string;
+          name:                 string;
+          hourly_wage:          number;
+          color:                string;
+          note:                 string | null;
+          is_active:            boolean;
+          closing_day:          number;   // 締め日（31=月末）
+          payday_month_offset:  number;   // 翌月払い=1 / 当月払い=0
+          payday_day:           number;   // 給料日（31=月末）
+          external_source:      ExternalSource;
+          external_id:          string | null;
+          created_at:           string;
+          updated_at:           string;
         };
         Insert: {
-          id?:              string;
-          user_id:          string;
-          name:             string;
-          hourly_wage?:     number;
-          color?:           string;
-          note?:            string | null;
-          is_active?:       boolean;
-          external_source?: ExternalSource;
-          external_id?:     string | null;
-          created_at?:      string;
-          updated_at?:      string;
+          id?:                   string;
+          user_id:               string;
+          name:                  string;
+          hourly_wage?:          number;
+          color?:                string;
+          note?:                 string | null;
+          is_active?:            boolean;
+          closing_day?:          number;
+          payday_month_offset?:  number;
+          payday_day?:           number;
+          external_source?:      ExternalSource;
+          external_id?:          string | null;
+          created_at?:           string;
+          updated_at?:           string;
         };
         Update: {
-          id?:              string;
-          user_id?:         string;
-          name?:            string;
-          hourly_wage?:     number;
-          color?:           string;
-          note?:            string | null;
-          is_active?:       boolean;
-          external_source?: ExternalSource;
-          external_id?:     string | null;
-          created_at?:      string;
-          updated_at?:      string;
+          id?:                   string;
+          user_id?:              string;
+          name?:                 string;
+          hourly_wage?:          number;
+          color?:                string;
+          note?:                 string | null;
+          is_active?:            boolean;
+          closing_day?:          number;
+          payday_month_offset?:  number;
+          payday_day?:           number;
+          external_source?:      ExternalSource;
+          external_id?:          string | null;
+          created_at?:           string;
+          updated_at?:           string;
         };
         Relationships: [];
       };

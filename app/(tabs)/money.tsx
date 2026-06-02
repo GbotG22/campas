@@ -43,6 +43,16 @@ const CAT_COLORS: Record<Category, string> = {
   'その他':  '#9CA3AF',
 };
 
+// ── 締め日・給料日 プリセット ─────────────────────────────
+const CLOSING_DAY_OPTIONS = [31, 25, 20, 15] as const;
+const PAYDAY_DAY_OPTIONS  = [31, 25, 20, 15, 10] as const;
+
+function formatPaySchedule(closingDay: number, offset: number, paydayDay: number): string {
+  const c = closingDay === 31 ? '月末締め' : `${closingDay}日締め`;
+  const d = paydayDay  === 31 ? '末日'     : `${paydayDay}日`;
+  return `${c} → ${offset === 0 ? '当月' : '翌月'}${d}払い`;
+}
+
 // ── 収支タブ型 ─────────────────────────────────────────────
 type MoneyTab = 'expenses' | 'subscriptions' | 'incomes' | 'salary';
 
@@ -221,17 +231,27 @@ export default function MoneyScreen() {
   }
 
   // ── バイト先モーダル ──────────────────────────────────────
-  const [wpModal, setWpModal]         = useState(false);
-  const [editingWp, setEditingWp]     = useState<Workplace | null>(null);
-  const [wpName, setWpName]           = useState('');
-  const [wpWage, setWpWage]           = useState('');
-  const [wpColor, setWpColor]         = useState<string>(WORKPLACE_COLORS[0]);
-  const [wpNote, setWpNote]           = useState('');
-  const [wpSaving, setWpSaving]       = useState(false);
+  const [wpModal, setWpModal]                               = useState(false);
+  const [editingWp, setEditingWp]                           = useState<Workplace | null>(null);
+  const [wpName, setWpName]                                 = useState('');
+  const [wpWage, setWpWage]                                 = useState('');
+  const [wpColor, setWpColor]                               = useState<string>(WORKPLACE_COLORS[0]);
+  const [wpNote, setWpNote]                                 = useState('');
+  const [wpClosingDay, setWpClosingDay]                     = useState(31);
+  const [wpPaydayMonthOffset, setWpPaydayMonthOffset]       = useState(1);
+  const [wpPaydayDay, setWpPaydayDay]                       = useState(25);
+  const [wpSaving, setWpSaving]                             = useState(false);
 
   function openWpModal(wp?: Workplace) {
-    if (wp) { setEditingWp(wp); setWpName(wp.name); setWpWage(String(wp.hourly_wage)); setWpColor(wp.color); setWpNote(wp.note ?? ''); }
-    else    { setEditingWp(null); setWpName(''); setWpWage(''); setWpColor(WORKPLACE_COLORS[0]); setWpNote(''); }
+    if (wp) {
+      setEditingWp(wp); setWpName(wp.name); setWpWage(String(wp.hourly_wage)); setWpColor(wp.color); setWpNote(wp.note ?? '');
+      setWpClosingDay(wp.closing_day ?? 31);
+      setWpPaydayMonthOffset(wp.payday_month_offset ?? 1);
+      setWpPaydayDay(wp.payday_day ?? 25);
+    } else {
+      setEditingWp(null); setWpName(''); setWpWage(''); setWpColor(WORKPLACE_COLORS[0]); setWpNote('');
+      setWpClosingDay(31); setWpPaydayMonthOffset(1); setWpPaydayDay(25);
+    }
     setWpModal(true);
   }
   async function handleSaveWorkplace() {
@@ -239,7 +259,7 @@ export default function MoneyScreen() {
     if (!wpName.trim()) { Alert.alert('入力エラー', 'バイト先名を入力してください'); return; }
     if (isNaN(wage) || wage <= 0) { Alert.alert('入力エラー', '時給を入力してください'); return; }
     setWpSaving(true);
-    const payload = { name: wpName.trim(), hourly_wage: wage, color: wpColor, note: wpNote.trim() || null, is_active: true };
+    const payload = { name: wpName.trim(), hourly_wage: wage, color: wpColor, note: wpNote.trim() || null, is_active: true, closing_day: wpClosingDay, payday_month_offset: wpPaydayMonthOffset, payday_day: wpPaydayDay };
     const err = editingWp ? await updateWorkplace(editingWp.id, payload) : await addWorkplace(payload);
     setWpSaving(false);
     if (err) Alert.alert('エラー', err.message); else setWpModal(false);
@@ -521,6 +541,30 @@ export default function MoneyScreen() {
               <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', paddingVertical: 4 }}>
                 {WORKPLACE_COLORS.map(c => (
                   <TouchableOpacity key={c} onPress={() => setWpColor(c)} style={[styles.colorCircle, { backgroundColor: c }, wpColor === c && styles.colorCircleSelected]} />
+                ))}
+              </View>
+              <Text style={styles.inputLabel}>締め日</Text>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
+                {CLOSING_DAY_OPTIONS.map(d => (
+                  <TouchableOpacity key={d} style={[styles.chip, { borderColor: COLORS.primary }, wpClosingDay === d && { backgroundColor: COLORS.primary }]} onPress={() => setWpClosingDay(d)}>
+                    <Text style={[styles.chipText, wpClosingDay === d && { color: '#fff' }]}>{d === 31 ? '末日' : `${d}日`}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.inputLabel}>支払い月</Text>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
+                {([1, 0] as const).map(offset => (
+                  <TouchableOpacity key={offset} style={[styles.chip, { borderColor: COLORS.primary }, wpPaydayMonthOffset === offset && { backgroundColor: COLORS.primary }]} onPress={() => setWpPaydayMonthOffset(offset)}>
+                    <Text style={[styles.chipText, wpPaydayMonthOffset === offset && { color: '#fff' }]}>{offset === 1 ? '翌月' : '当月'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.inputLabel}>給料日</Text>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4, flexWrap: 'wrap' }}>
+                {PAYDAY_DAY_OPTIONS.map(d => (
+                  <TouchableOpacity key={d} style={[styles.chip, { borderColor: COLORS.primary }, wpPaydayDay === d && { backgroundColor: COLORS.primary }]} onPress={() => setWpPaydayDay(d)}>
+                    <Text style={[styles.chipText, wpPaydayDay === d && { color: '#fff' }]}>{d === 31 ? '末日' : `${d}日`}</Text>
+                  </TouchableOpacity>
                 ))}
               </View>
               <Text style={styles.inputLabel}>メモ（任意）</Text>
@@ -978,6 +1022,7 @@ function SalaryTab({ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords
             <View style={[styles.colorCircle, { backgroundColor: wp.color }]} />
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{wp.name}</Text>
+              <Text style={styles.rowMeta}>{formatPaySchedule(wp.closing_day ?? 31, wp.payday_month_offset ?? 1, wp.payday_day ?? 25)}</Text>
               {wp.note ? <Text style={styles.rowMeta}>{wp.note}</Text> : null}
             </View>
             <View style={{ alignItems: 'flex-end', gap: 4 }}>
