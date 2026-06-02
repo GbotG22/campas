@@ -9,6 +9,7 @@ import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePremium } from '@/hooks/usePremium';
 import { IS_REVENUECAT_CONFIGURED } from '@/lib/revenuecat';
+import { supabase } from '@/lib/supabase';
 
 // ─────────────────────────────────────────────────────────────
 // 設定画面
@@ -43,6 +44,24 @@ export default function SettingsScreen() {
     else                          setDevAiPlus(next);
     await refresh();
   }, [refresh]);
+
+  // ── パスワード変更メール送信 ──────────────────────────────
+  async function handlePasswordChange() {
+    const email = user?.email;
+    if (!email) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) {
+      const msg = /rate.?limit|too.?many/i.test(error.message)
+        ? 'リクエストが多すぎます。しばらくしてから再試行してください。'
+        : 'メールの送信に失敗しました。もう一度お試しください。';
+      Alert.alert('送信エラー', msg);
+    } else {
+      Alert.alert(
+        'パスワード変更メールを送信しました',
+        `${email} にパスワード変更用のリンクを送りました。\nメールをご確認ください。`,
+      );
+    }
+  }
 
   // ── ログアウト確認アラート ────────────────────────────────
   function handleLogout() {
@@ -180,6 +199,12 @@ export default function SettingsScreen() {
             icon="mail-outline"
             label="メールアドレス"
             value={user?.email ?? '不明'}
+          />
+          <SettingsRow
+            icon="key-outline"
+            label="パスワードを変更する"
+            onPress={handlePasswordChange}
+            isLast
           />
         </View>
 
