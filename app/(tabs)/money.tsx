@@ -6,6 +6,7 @@ import {
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import InlineDatePicker from '@/components/InlineDatePicker';
 import InlineTimePicker from '@/components/InlineTimePicker';
@@ -18,6 +19,7 @@ import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useWorkplaces, WORKPLACE_COLORS } from '@/hooks/useWorkplaces';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
 import type { Database, IncomeType } from '@/types/database';
+type Expense = Database['public']['Tables']['expenses']['Row'];
 
 // ── ローカル型定義 ─────────────────────────────────────────
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
@@ -59,7 +61,20 @@ function aggregateByCategory(expenses: { amount: number; category: string | null
 // メイン画面
 // ─────────────────────────────────────────────────────────────
 export default function MoneyScreen() {
-  const { expenses, isLoading: expLoading, addExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses();
+  // ── 今月（固定）────────────────────────────────────────────
+  const now       = new Date();
+  const thisYear  = now.getFullYear();
+  const thisMonth = now.getMonth() + 1;
+
+  // ── 月ナビゲーション（useExpenses より前に宣言が必要）───────
+  const [selYear,  setSelYear]  = useState(thisYear);
+  const [selMonth, setSelMonth] = useState(thisMonth);
+  const selYM          = `${selYear}-${String(selMonth).padStart(2, '0')}`;
+  const selMonthLabel  = `${selYear}年${selMonth}月`;
+  const isCurrentMonth = selYear === thisYear && selMonth === thisMonth;
+
+  // ── データフック ───────────────────────────────────────────
+  const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses(selYear, selMonth);
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subTotal } = useSubscriptions();
   const { incomes, salaryRecords: salaryRecordsRaw, isLoading: incLoading, addIncome, deleteIncome, addSalaryRecord, deleteSalaryRecord } = useIncomes();
   const { workplaces, isLoading: wpLoading, addWorkplace, updateWorkplace, deleteWorkplace } = useWorkplaces();
@@ -69,12 +84,18 @@ export default function MoneyScreen() {
 
   const [tab, setTab] = useState<MoneyTab>('expenses');
 
-  // ── 今月 ──
-  const now       = new Date();
-  const thisYear  = now.getFullYear();
-  const thisMonth = now.getMonth() + 1;
-  const thisYM    = `${thisYear}-${String(thisMonth).padStart(2, '0')}`;
-  const monthLabel = `${thisYear}年${thisMonth}月`;
+  function prevMonth() {
+    if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); }
+    else setSelMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (isCurrentMonth) return;
+    if (selMonth === 12) { setSelYear(y => y + 1); setSelMonth(1); }
+    else setSelMonth(m => m + 1);
+  }
+  function goToCurrentMonth() {
+    setSelYear(thisYear); setSelMonth(thisMonth);
+  }
 
   // ── 予算 (支出タブ) ───────────────────────────────────────
   const [budget, setBudget] = useState<number | null>(null);
@@ -93,8 +114,9 @@ export default function MoneyScreen() {
     setBudget(v); setBudgetModal(false);
   }
 
-  // ── 支出追加モーダル ──────────────────────────────────────
+  // ── 支出 追加 / 編集モーダル ──────────────────────────────
   const [addExpModal, setAddExpModal] = useState(false);
+  const [editingExp, setEditingExp]   = useState<Expense | null>(null);
   const [expTitle, setExpTitle]       = useState('');
   const [expAmount, setExpAmount]     = useState('');
   const [expCat, setExpCat]           = useState<Category>('食費');
@@ -102,15 +124,49 @@ export default function MoneyScreen() {
   const [expMemo, setExpMemo]         = useState('');
   const [expSaving, setExpSaving]     = useState(false);
 
-  async function handleAddExpense() {
+  function openAddExpModal() {
+    setEditingExp(null);
+    const defaultDate = isCurrentMonth
+      ? now.toISOString().split('T')[0]
+      : `${selYear}-${String(selMonth).padStart(2, '0')}-01`;
+    setExpTitle(''); setExpAmount(''); setExpCat('食費');
+    setExpDate(defaultDate); setExpMemo('');
+    setAddExpModal(true);
+  }
+
+  function openEditExp(exp: Expense) {
+    setEditingExp(exp);
+    setExpTitle(exp.title);
+    setExpAmount(String(exp.amount));
+    setExpCat((exp.category as Category) ?? '食費');
+    setExpDate(exp.paid_at ?? now.toISOString().split('T')[0]);
+    setExpMemo(exp.note ?? '');
+    setAddExpModal(true);
+  }
+
+  async function handleSaveExpense() {
     const amount = parseInt(expAmount, 10);
     if (!expTitle.trim() || isNaN(amount) || amount <= 0) {
       Alert.alert('入力エラー', '内容と金額を入力してください'); return;
     }
     setExpSaving(true);
-    const err = await addExpense({ title: expTitle.trim(), amount, category: expCat, paid_at: expDate, note: expMemo.trim() || null });
+    const payload = { title: expTitle.trim(), amount, category: expCat, paid_at: expDate, note: expMemo.trim() || null };
+    const err = editingExp
+      ? await updateExpense(editingExp.id, payload)
+      : await addExpense(payload);
     setExpSaving(false);
     if (err) Alert.alert('エラー', err.message); else setAddExpModal(false);
+  }
+
+  function confirmDeleteExpense() {
+    if (!editingExp) return;
+    Alert.alert('削除', `「${editingExp.title}」を削除しますか？`, [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除', style: 'destructive',
+        onPress: async () => { await deleteExpense(editingExp.id); setAddExpModal(false); },
+      },
+    ]);
   }
 
   // ── サブスク追加/編集モーダル ─────────────────────────────
@@ -145,12 +201,12 @@ export default function MoneyScreen() {
   const [incType, setIncType]             = useState<IncomeType>('salary');
   const [incTitle, setIncTitle]           = useState('');
   const [incAmount, setIncAmount]         = useState('');
-  const [incDate, setIncDate]             = useState(thisYM + '-25');
+  const [incDate, setIncDate]             = useState(selYM + '-25');
   const [incMemo, setIncMemo]             = useState('');
   const [incSaving, setIncSaving]         = useState(false);
 
   function openAddIncModal() {
-    setIncType('salary'); setIncTitle(''); setIncAmount(''); setIncDate(thisYM + '-25'); setIncMemo('');
+    setIncType('salary'); setIncTitle(''); setIncAmount(''); setIncDate(selYM + '-25'); setIncMemo('');
     setAddIncModal(true);
   }
   async function handleAddIncome() {
@@ -227,13 +283,13 @@ export default function MoneyScreen() {
   // ── 給与記録追加モーダル ──────────────────────────────────
   const [salaryModal, setSalaryModal] = useState(false);
   const [salWpId, setSalWpId]         = useState('');
-  const [salYM, setSalYM]             = useState(thisYM);
+  const [salYM, setSalYM]             = useState(selYM);
   const [salAmount, setSalAmount]     = useState('');
   const [salNote, setSalNote]         = useState('');
   const [salSaving, setSalSaving]     = useState(false);
 
   function openSalaryModal() {
-    setSalWpId(workplaces[0]?.id ?? ''); setSalYM(thisYM); setSalAmount(''); setSalNote('');
+    setSalWpId(workplaces[0]?.id ?? ''); setSalYM(selYM); setSalAmount(''); setSalNote('');
     setSalaryModal(true);
   }
   async function handleAddSalary() {
@@ -252,18 +308,19 @@ export default function MoneyScreen() {
   const catData    = aggregateByCategory(expenses);
   const maxCat     = catData[0]?.total ?? 1;
 
-  const monthlyIncomeTotal = incomes.filter(i => i.received_at.startsWith(thisYM)).reduce((s, i) => s + i.amount, 0);
-  const thisMonthShifts    = getForMonth(thisYear, thisMonth);
-  const monthlyEstimate    = getMonthlyEstimate(thisYear, thisMonth);
+  const selMonthIncomes    = useMemo(() => incomes.filter(i => i.received_at.startsWith(selYM)), [incomes, selYM]);
+  const monthlyIncomeTotal = useMemo(() => selMonthIncomes.reduce((s, i) => s + i.amount, 0), [selMonthIncomes]);
+  const thisMonthShifts    = getForMonth(selYear, selMonth);
+  const monthlyEstimate    = getMonthlyEstimate(selYear, selMonth);
 
   const isLoading = expLoading || subLoading || incLoading || wpLoading || shiftLoading;
 
   // ── FAB押下 ──────────────────────────────────────────────
   function handleAdd() {
-    if (tab === 'expenses')      { setExpTitle(''); setExpAmount(''); setExpCat('食費'); setExpDate(now.toISOString().split('T')[0]); setExpMemo(''); setAddExpModal(true); }
+    if (tab === 'expenses')           openAddExpModal();
     else if (tab === 'subscriptions') openSubModal();
-    else if (tab === 'incomes')  openAddIncModal();
-    else if (tab === 'salary')   openShiftModal();
+    else if (tab === 'incomes')       openAddIncModal();
+    else if (tab === 'salary')        openShiftModal();
   }
 
   return (
@@ -283,6 +340,24 @@ export default function MoneyScreen() {
         </View>
       </View>
 
+      {/* ── 月ナビゲーター ── */}
+      <View style={styles.monthNav}>
+        <TouchableOpacity onPress={prevMonth} style={styles.monthNavBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-back" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={isCurrentMonth ? undefined : goToCurrentMonth}
+          style={styles.monthNavCenter}
+          activeOpacity={isCurrentMonth ? 1 : 0.6}
+        >
+          <Text style={styles.monthNavText}>{selYear}年{selMonth}月</Text>
+          {!isCurrentMonth && <Text style={styles.monthNavBackText}>今月に戻る</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={nextMonth} style={styles.monthNavBtn} disabled={isCurrentMonth} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="chevron-forward" size={22} color={isCurrentMonth ? COLORS.gray200 : COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+
       {/* ── サブタブ ── */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabContainer}>
         {([
@@ -298,10 +373,10 @@ export default function MoneyScreen() {
         <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />
       ) : (
         <>
-          {tab === 'expenses'      && <ExpensesTab {...{ expenses, monthlyTotal: expTotal, budget, remaining, usageRate, overBudget, catData, maxCat, deleteExpense, monthLabel }} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
+          {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
-          {tab === 'incomes'       && <IncomesTab {...{ incomes, monthlyTotal: monthlyIncomeTotal, thisYM, monthLabel }} onDelete={deleteIncome} />}
-          {tab === 'salary'        && <SalaryTab {...{ workplaces, monthlyEstimate, thisMonthShifts, salaryRecords, monthLabel }} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddShift={openShiftModal} onDeleteShift={id => Alert.alert('削除', 'シフトを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteShift(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
+          {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
+          {tab === 'salary'        && <SalaryTab workplaces={workplaces} monthlyEstimate={monthlyEstimate} thisMonthShifts={thisMonthShifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddShift={openShiftModal} onDeleteShift={id => Alert.alert('削除', 'シフトを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteShift(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
         </>
       )}
 
@@ -320,11 +395,11 @@ export default function MoneyScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* 支出追加 */}
+      {/* 支出 追加 / 編集 */}
       <Modal visible={addExpModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-            <ModalHeader title="支出を追加" onCancel={() => setAddExpModal(false)} onSave={handleAddExpense} saveLabel={expSaving ? '保存中...' : '追加'} disabled={expSaving} />
+            <ModalHeader title={editingExp ? '支出を編集' : '支出を追加'} onCancel={() => setAddExpModal(false)} onSave={handleSaveExpense} saveLabel={expSaving ? '保存中...' : editingExp ? '更新' : '追加'} disabled={expSaving} />
             <ScrollView style={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.inputLabel}>内容 *</Text>
               <TextInput style={styles.input} placeholder="例: ランチ" value={expTitle} onChangeText={setExpTitle} autoFocus />
@@ -341,6 +416,11 @@ export default function MoneyScreen() {
               <InlineDatePicker label="日付" value={expDate} onChange={setExpDate} />
               <Text style={styles.inputLabel}>メモ（任意）</Text>
               <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="例: 友達とランチ" value={expMemo} onChangeText={setExpMemo} multiline />
+              {editingExp && (
+                <TouchableOpacity style={styles.deleteModalBtn} onPress={confirmDeleteExpense}>
+                  <Text style={styles.deleteModalBtnText}>🗑 この支出を削除する</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -504,13 +584,14 @@ export default function MoneyScreen() {
 // ─────────────────────────────────────────────────────────────
 // 支出タブ
 // ─────────────────────────────────────────────────────────────
-function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, overBudget, catData, maxCat, deleteExpense, monthLabel, onSetBudget }: {
+function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, overBudget, catData, maxCat, monthLabel, onEdit, onSetBudget }: {
   expenses: Database['public']['Tables']['expenses']['Row'][];
   monthlyTotal: number; budget: number | null; remaining: number | null;
   usageRate: number; overBudget: boolean;
   catData: { cat: string; total: number }[]; maxCat: number;
-  deleteExpense: (id: string) => Promise<unknown>;
-  monthLabel: string; onSetBudget: () => void;
+  monthLabel: string;
+  onEdit: (item: Database['public']['Tables']['expenses']['Row']) => void;
+  onSetBudget: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
@@ -561,28 +642,20 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
 
       <Text style={styles.listSectionLabel}>明細</Text>
       {expenses.length === 0 ? (
-        <Empty emoji="💰" text="今月の支出はまだありません" />
+        <Empty emoji="💰" text="この月の支出はまだありません" />
       ) : expenses.map(item => (
-        <View key={item.id} style={styles.row}>
+        <TouchableOpacity key={item.id} style={styles.row} onPress={() => onEdit(item)} activeOpacity={0.75}>
           <View style={[styles.dot, { backgroundColor: CAT_COLORS[item.category as Category] ?? COLORS.gray400 }]} />
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{item.title}</Text>
             {item.note ? <Text style={styles.rowMeta}>{item.note}</Text> : null}
             <Text style={styles.rowMeta}>{item.category ?? 'その他'} · {item.paid_at}</Text>
           </View>
-          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={{ alignItems: 'flex-end', gap: 2 }}>
             <Text style={styles.rowAmount}>¥{item.amount.toLocaleString()}</Text>
-            <TouchableOpacity
-              style={styles.deleteRowBtn}
-              onPress={() => Alert.alert(item.title, '削除しますか？', [
-                { text: 'キャンセル', style: 'cancel' },
-                { text: '削除', style: 'destructive', onPress: () => deleteExpense(item.id) },
-              ])}
-            >
-              <Text style={styles.deleteRowBtnText}>削除</Text>
-            </TouchableOpacity>
+            <Text style={styles.rowEditHint}>タップで編集</Text>
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
     </ScrollView>
   );
@@ -757,19 +830,17 @@ function SubscriptionsTab({ subscriptions, monthlyTotal, onEdit, onDelete }: {
 // ─────────────────────────────────────────────────────────────
 // 収入タブ
 // ─────────────────────────────────────────────────────────────
-function IncomesTab({ incomes, monthlyTotal, thisYM, monthLabel, onDelete }: {
+function IncomesTab({ incomes, monthlyTotal, monthLabel, onDelete }: {
   incomes: Database['public']['Tables']['incomes']['Row'][];
-  monthlyTotal: number; thisYM: string; monthLabel: string;
+  monthlyTotal: number; monthLabel: string;
   onDelete: (id: string) => Promise<unknown>;
 }) {
-  // 種別ごとの今月合計
+  // 種別ごとの合計（incomes はすでに選択月でフィルタ済み）
   const breakdown = useMemo(() => {
     const map: Record<string, number> = {};
-    incomes.filter(i => i.received_at.startsWith(thisYM)).forEach(i => {
-      map[i.income_type] = (map[i.income_type] ?? 0) + i.amount;
-    });
+    incomes.forEach(i => { map[i.income_type] = (map[i.income_type] ?? 0) + i.amount; });
     return Object.entries(map).map(([type, total]) => ({ type: type as IncomeType, total })).sort((a, b) => b.total - a.total);
-  }, [incomes, thisYM]);
+  }, [incomes]);
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
@@ -792,7 +863,7 @@ function IncomesTab({ incomes, monthlyTotal, thisYM, monthLabel, onDelete }: {
 
       <Text style={styles.listSectionLabel}>収入履歴</Text>
       {incomes.length === 0 ? (
-        <Empty emoji="💰" text="収入がまだ登録されていません" />
+        <Empty emoji="💰" text="この月の収入はまだありません" />
       ) : incomes.map(item => {
         const cfg = INCOME_TYPE_CONFIG[item.income_type];
         return (
@@ -967,6 +1038,13 @@ const styles = StyleSheet.create({
   primaryBtn:     { backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: SPACING.md - 2, paddingVertical: SPACING.xs + 3 },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
+  // 月ナビゲーター
+  monthNav:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 4, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  monthNavBtn:     { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  monthNavCenter:  { flex: 1, alignItems: 'center', paddingVertical: 4 },
+  monthNavText:    { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
+  monthNavBackText:{ fontSize: 11, color: COLORS.primary, fontWeight: '600', marginTop: 2 },
+
   tabScroll:     { maxHeight: 48 },
   tabContainer:  { paddingHorizontal: SPACING.sm + 4, gap: SPACING.sm, alignItems: 'center', paddingVertical: SPACING.xs + 2 },
   tabItem:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 3, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
@@ -1035,6 +1113,13 @@ const styles = StyleSheet.create({
   // 行内削除ボタン（常時表示）
   deleteRowBtn:     { paddingHorizontal: SPACING.sm + 2, paddingVertical: 10, borderRadius: RADIUS.sm, backgroundColor: COLORS.dangerLight },
   deleteRowBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.danger },
+
+  // 支出行の編集ヒント
+  rowEditHint: { fontSize: 10, color: COLORS.gray300, marginTop: 2 },
+
+  // モーダル内削除ボタン
+  deleteModalBtn:     { marginTop: SPACING.lg, marginBottom: SPACING.sm, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: '#FEF2F2', alignItems: 'center' },
+  deleteModalBtnText: { fontSize: 15, fontWeight: '700', color: COLORS.danger },
 
   empty:     { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.sm },
   emptyText: { fontSize: 14, color: COLORS.gray400 },

@@ -282,7 +282,7 @@ export default function HomeScreen() {
 
         {/* ── 今月の収支 ── */}
         <View style={styles.card}>
-          <SectionHeader title={`${calYear}年${calMonth}月の収支`} />
+          <SectionHeader title="今月の収支" />
           <View style={styles.moneyGrid}>
             <MoneyCell label="収入"     value={monthIncome} color={COLORS.success} prefix="¥" />
             <MoneyCell label="支出"     value={monthExp}    color={COLORS.danger}  prefix="¥" />

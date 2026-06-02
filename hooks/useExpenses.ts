@@ -7,7 +7,7 @@ import type { Database } from '@/types/database';
 type Expense = Database['public']['Tables']['expenses']['Row'];
 type InsertExpense = Database['public']['Tables']['expenses']['Insert'];
 
-export function useExpenses() {
+export function useExpenses(year?: number, month?: number) {
   const { user } = useAuthStore();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,8 +16,10 @@ export function useExpenses() {
     if (!user) return;
     setIsLoading(true);
     const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const y = year  ?? now.getFullYear();
+    const m = month ?? (now.getMonth() + 1);
+    const firstDay = new Date(y, m - 1, 1).toISOString().split('T')[0];
+    const lastDay  = new Date(y, m,     0).toISOString().split('T')[0];
 
     const { data } = await supabase
       .from('expenses')
@@ -29,7 +31,7 @@ export function useExpenses() {
 
     setExpenses(data ?? []);
     setIsLoading(false);
-  }, [user]);
+  }, [user, year, month]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
@@ -44,6 +46,17 @@ export function useExpenses() {
     return error;
   };
 
+  const updateExpense = async (id: string, item: Partial<Omit<InsertExpense, 'user_id'>>) => {
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(item)
+      .eq('id', id)
+      .select()
+      .single();
+    if (!error && data) setExpenses(prev => prev.map(e => e.id === id ? data : e));
+    return error;
+  };
+
   const deleteExpense = async (id: string) => {
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     if (!error) setExpenses(prev => prev.filter(e => e.id !== id));
@@ -52,5 +65,5 @@ export function useExpenses() {
 
   const monthlyTotal = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  return { expenses, isLoading, addExpense, deleteExpense, monthlyTotal, refresh: fetch };
+  return { expenses, isLoading, addExpense, updateExpense, deleteExpense, monthlyTotal, refresh: fetch };
 }
