@@ -70,8 +70,12 @@ export default function HomeScreen() {
   }, [events, shifts, nativeEvents, nativeConnected]);
 
   // ── 選択日のデータ ────────────────────────────────────────
-  const selEvents = getEvents(selDate);
-  const selShifts = getShifts(selDate);
+  const selEvents       = getEvents(selDate);
+  const selShifts       = getShifts(selDate);
+  const selNativeEvents = useMemo(
+    () => nativeConnected ? nativeEvents.filter(e => e.date === selDate) : [],
+    [nativeEvents, nativeConnected, selDate],
+  );
 
   // ── 今日の時間割 ─────────────────────────────────────────
   const todaySlots = useMemo(() => {
@@ -171,7 +175,7 @@ export default function HomeScreen() {
         {/* ── 選択日の予定 ── */}
         <View style={styles.card}>
           <SectionHeader title={`${selLabel}の予定`} />
-          {selEvents.length === 0 && selShifts.length === 0 && (
+          {selEvents.length === 0 && selShifts.length === 0 && selNativeEvents.length === 0 && (
             <Text style={styles.emptyText}>予定はありません</Text>
           )}
           {selShifts.map(s => (
@@ -204,6 +208,21 @@ export default function HomeScreen() {
               </View>
             );
           })}
+          {selNativeEvents.map(e => (
+            <View key={`native_${e.id}`} style={[styles.eventRow, { borderLeftColor: e.color }]}>
+              <Text style={styles.eventEmoji}>📱</Text>
+              <View style={styles.eventBody}>
+                <Text style={styles.eventTitle}>{e.title}</Text>
+                <Text style={styles.eventMeta}>
+                  {e.time ? `${e.time}${e.endTime ? ` 〜 ${e.endTime}` : ''}` : '終日'}
+                  {e.calendarTitle ? `　${e.calendarTitle}` : ''}
+                </Text>
+              </View>
+              <View style={[styles.typeBadge, { backgroundColor: '#F0FDF4' }]}>
+                <Text style={[styles.typeBadgeText, { color: e.color }]}>端末</Text>
+              </View>
+            </View>
+          ))}
         </View>
 
         {/* ── 今日の授業（出席ボタン付き） ── */}

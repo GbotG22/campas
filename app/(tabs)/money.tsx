@@ -675,7 +675,7 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
   onSetBudget: () => void;
 }) {
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={styles.summaryCard}>
         <Text style={styles.summarySubLabel}>{monthLabel}の支出</Text>
         <Text style={[styles.summaryAmount, overBudget && { color: COLORS.danger }]}>
@@ -858,7 +858,7 @@ function SubscriptionsTab({ subscriptions, monthlyTotal, onEdit, onDelete }: {
   const nextSubDays = nextSub ? daysUntilRenewal(nextSub.renewal_day) : 0;
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       {/* サマリーカード */}
       <View style={styles.summaryCard}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -924,7 +924,7 @@ function IncomesTab({ incomes, monthlyTotal, monthLabel, onDelete }: {
   }, [incomes]);
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={styles.summaryCard}>
         <Text style={styles.summarySubLabel}>{monthLabel}の収入</Text>
         <Text style={[styles.summaryAmount, { color: COLORS.success }]}>¥{monthlyTotal.toLocaleString()}</Text>
@@ -1025,7 +1025,7 @@ function SalaryTab({
   const totalWage    = thisMonthShifts.reduce((sum, s) => sum + (s.estimated_wage ?? 0), 0);
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
 
       {/* ── 次の給料 ── */}
       <View style={styles.sectionHeader}>
@@ -1203,7 +1203,7 @@ const styles = StyleSheet.create({
   monthNavText:    { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
   monthNavBackText:{ fontSize: 11, color: COLORS.primary, fontWeight: '600', marginTop: 2 },
 
-  tabScroll:     { flexShrink: 0 },
+  tabScroll:     { backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
   tabContainer:  { paddingHorizontal: SPACING.sm + 4, gap: SPACING.sm, alignItems: 'center', paddingVertical: SPACING.xs + 2 },
   tabItem:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 3, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
   tabItemActive: { backgroundColor: COLORS.primary },
