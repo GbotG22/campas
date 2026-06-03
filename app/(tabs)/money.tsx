@@ -1203,7 +1203,7 @@ const styles = StyleSheet.create({
   monthNavText:    { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
   monthNavBackText:{ fontSize: 11, color: COLORS.primary, fontWeight: '600', marginTop: 2 },
 
-  tabScroll:     { maxHeight: 48 },
+  tabScroll:     { flexShrink: 0 },
   tabContainer:  { paddingHorizontal: SPACING.sm + 4, gap: SPACING.sm, alignItems: 'center', paddingVertical: SPACING.xs + 2 },
   tabItem:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 3, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
   tabItemActive: { backgroundColor: COLORS.primary },

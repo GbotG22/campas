@@ -49,18 +49,8 @@ export const useSubscriptionsStore = create<SubscriptionsState>((set, get) => ({
       isLoading:     false,
     });
 
-    // 通知スケジュール（Expo Goでも動作する・getNotifications() が null の場合は no-op）
-    {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const { data: recentExpenses } = await supabase
-        .from('expenses')
-        .select('title')
-        .eq('user_id', user.id)
-        .gte('paid_at', threeMonthsAgo.toISOString().split('T')[0]);
-      const recentTitles = (recentExpenses ?? []).map(e => e.title);
-      rescheduleSubscriptionNotifications(list, recentTitles).catch(() => {});
-    }
+    // 更新日通知をスケジュール
+    rescheduleSubscriptionNotifications(list).catch(() => {});
   },
 
   // ── addSubscription ───────────────────────────────────────────

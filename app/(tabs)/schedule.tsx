@@ -99,6 +99,9 @@ export default function ScheduleScreen() {
   const { isPremium, isAiPlus } = usePremium();
   const [aiModalVisible, setAiModalVisible] = useState(false);
 
+  // ── 端末カレンダー詳細モーダル ────────────────────────────
+  const [nativeDetailItem, setNativeDetailItem] = useState<ScheduleItem | null>(null);
+
   // ── カレンダー ─────────────────────────────────────────────
   const todayDate = new Date();
   const [calYear,  setCalYear]  = useState(todayDate.getFullYear());
@@ -297,14 +300,7 @@ export default function ScheduleScreen() {
       return;
     }
     if (item.source === 'native') {
-      const ev = item.raw as NativeCalEvent;
-      const timeStr = item.time
-        ? `${item.time}${item.endTime ? ` 〜 ${item.endTime}` : ''}`
-        : '終日';
-      const lines = [`📅 ${ev.calendarTitle}`, timeStr];
-      if (item.description) lines.push(item.description);
-      lines.push('\n端末カレンダーのイベントは編集できません。\niPhoneのカレンダーアプリで編集してください。');
-      Alert.alert(item.title, lines.join('\n'), [{ text: '閉じる' }]);
+      setNativeDetailItem(item);
       return;
     }
     setEditingItem(item);
@@ -744,6 +740,63 @@ export default function ScheduleScreen() {
         </SafeAreaView>
       </Modal>
 
+      {/* ── 端末カレンダー詳細モーダル ── */}
+      <Modal
+        visible={!!nativeDetailItem}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setNativeDetailItem(null)}
+      >
+        {nativeDetailItem && (() => {
+          const ev  = nativeDetailItem.raw as NativeCalEvent;
+          const timeStr = nativeDetailItem.time
+            ? `${nativeDetailItem.time}${nativeDetailItem.endTime ? ` 〜 ${nativeDetailItem.endTime}` : ''}`
+            : '終日';
+          return (
+            <SafeAreaView style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <View style={{ width: 60 }} />
+                <Text style={styles.modalTitle}>📱 カレンダー詳細</Text>
+                <TouchableOpacity onPress={() => setNativeDetailItem(null)}>
+                  <Text style={styles.modalCancel}>閉じる</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
+                {/* タイトル */}
+                <View style={styles.nativeDetailBlock}>
+                  <View style={[styles.nativeDetailBar, { backgroundColor: nativeDetailItem.color }]} />
+                  <Text style={styles.nativeDetailTitle}>{nativeDetailItem.title}</Text>
+                </View>
+                {/* カレンダー名 */}
+                <View style={styles.nativeDetailRow}>
+                  <Text style={styles.nativeDetailLabel}>📅 カレンダー</Text>
+                  <Text style={styles.nativeDetailValue}>{ev.calendarTitle}</Text>
+                </View>
+                {/* 日付 */}
+                <View style={styles.nativeDetailRow}>
+                  <Text style={styles.nativeDetailLabel}>🗓 日時</Text>
+                  <Text style={styles.nativeDetailValue}>
+                    {fmtShort(nativeDetailItem.date)}{'  '}{timeStr}
+                  </Text>
+                </View>
+                {/* メモ */}
+                {ev.notes ? (
+                  <View style={styles.nativeDetailRow}>
+                    <Text style={styles.nativeDetailLabel}>📝 メモ</Text>
+                    <Text style={[styles.nativeDetailValue, { flex: 1 }]}>{ev.notes}</Text>
+                  </View>
+                ) : null}
+                {/* 注記 */}
+                <Text style={styles.nativeDetailNote}>
+                  端末カレンダーのイベントは読み取り専用です。{'\n'}
+                  編集はiPhoneのカレンダーアプリで行ってください。
+                </Text>
+              </ScrollView>
+            </SafeAreaView>
+          );
+        })()}
+      </Modal>
+
       {/* ── AI分析モーダル ── */}
       <Modal visible={aiModalVisible} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalContainer}>
@@ -947,6 +1000,15 @@ const styles = StyleSheet.create({
   // フォーム
   formLabel: { fontSize: 13, fontWeight: '700', color: COLORS.gray600, marginBottom: 6 },
   formInput: { borderWidth: 1, borderColor: COLORS.gray200, borderRadius: RADIUS.sm + 2, padding: 12, fontSize: 14, color: COLORS.gray900, backgroundColor: COLORS.gray50 },
+
+  // 端末カレンダー詳細モーダル
+  nativeDetailBlock: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  nativeDetailBar:   { width: 4, height: 40, borderRadius: 2 },
+  nativeDetailTitle: { fontSize: 20, fontWeight: '800', color: COLORS.gray900, flex: 1 },
+  nativeDetailRow:   { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  nativeDetailLabel: { fontSize: 13, color: COLORS.gray400, width: 80 },
+  nativeDetailValue: { fontSize: 14, color: COLORS.gray900, fontWeight: '500' },
+  nativeDetailNote:  { fontSize: 12, color: COLORS.gray400, textAlign: 'center', lineHeight: 18, marginTop: 24 },
 
   // バイト先
   wpRow:      { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: 14 },

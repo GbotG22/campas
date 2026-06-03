@@ -205,43 +205,17 @@ export async function scheduleSubscriptionNotification(sub: Subscription) {
   } catch { /* ignore */ }
 }
 
-/** 3ヶ月間支出がないサブスクの通知 */
-export async function scheduleUnusedSubscriptionNotification(sub: Subscription) {
-  try {
-    const settings = await getNotificationSettings();
-    if (!settings.subscriptions) return;
-    const N = getNotifications();
-    if (!N) return;
-    const date = new Date(Date.now() + 5 * 60 * 1000);
-    await N.scheduleNotificationAsync({
-      identifier: `sub_${sub.id}_unused`,
-      content: {
-        title: '💭 本当に使っていますか？',
-        body: `${sub.service_name}（¥${sub.amount.toLocaleString()}/月）の支出が3ヶ月間記録されていません`,
-        sound: true,
-        categoryIdentifier: SUBSCRIPTION_CATEGORY,
-        data: { subscriptionId: sub.id, type: 'unused' },
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date },
-    });
-  } catch { /* ignore */ }
-}
-
 export async function cancelSubscriptionNotifications(id: string) {
   try {
     const N = getNotifications();
     if (!N) return;
-    await Promise.all([
-      N.cancelScheduledNotificationAsync(`sub_${id}_renewal`),
-      N.cancelScheduledNotificationAsync(`sub_${id}_unused`),
-    ]);
+    await N.cancelScheduledNotificationAsync(`sub_${id}_renewal`);
   } catch { /* ignore */ }
 }
 
 /** アクティブなサブスク通知を一括再スケジュール */
 export async function rescheduleSubscriptionNotifications(
   subscriptions: Subscription[],
-  recentExpenseTitles: string[],
 ) {
   try {
     const N = getNotifications();
@@ -256,10 +230,6 @@ export async function rescheduleSubscriptionNotifications(
     for (const sub of subscriptions) {
       if (!sub.is_active) continue;
       await scheduleSubscriptionNotification(sub);
-      const hasRecord = recentExpenseTitles.some(t =>
-        t.toLowerCase().includes(sub.service_name.toLowerCase()),
-      );
-      if (!hasRecord) await scheduleUnusedSubscriptionNotification(sub);
     }
   } catch { /* ignore */ }
 }

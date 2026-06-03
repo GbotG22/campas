@@ -13,6 +13,7 @@ import { useTimetable }        from '@/hooks/useTimetable';
 import { useExpenses }         from '@/hooks/useExpenses';
 import { useAttendance, ATT_CONFIG } from '@/hooks/useAttendance';
 import type { AttendanceStatus } from '@/hooks/useAttendance';
+import { useNativeCalendar } from '@/hooks/useNativeCalendar';
 import type { Database }       from '@/types/database';
 
 type TimetableSlot = Database['public']['Tables']['timetable_slots']['Row'];
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   const { slots }                                           = useTimetable();
   const { expenses }                                        = useExpenses();
   const { record: recordAttendance, getForDate: getAttendance } = useAttendance();
+  const { nativeEvents, isConnected: nativeConnected } = useNativeCalendar();
 
   const hour     = today.getHours();
   const greeting = hour < 10 ? 'おはようございます ☀️' : hour < 18 ? 'こんにちは 👋' : 'お疲れ様です 🌙';
@@ -61,8 +63,11 @@ export default function HomeScreen() {
     const out: CalendarMarker[] = [];
     events.forEach(e => out.push({ date: e.start_date, color: EVENT_CONFIG[e.event_type].color }));
     shifts.forEach(s => out.push({ date: s.date, color: COLORS.success }));
+    if (nativeConnected) {
+      nativeEvents.forEach(e => out.push({ date: e.date, color: e.color }));
+    }
     return out;
-  }, [events, shifts]);
+  }, [events, shifts, nativeEvents, nativeConnected]);
 
   // ── 選択日のデータ ────────────────────────────────────────
   const selEvents = getEvents(selDate);
