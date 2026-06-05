@@ -75,28 +75,50 @@ export function useAI() {
     setError(null);
 
     const today = new Date().toISOString().split('T')[0];
+    console.log('[AI] 分析開始 items数:', items.length, 'today:', today);
 
     try {
+      const prompt = buildPrompt(items, today);
+      console.log('[AI] Edge Function呼び出し: ai-analyze, prompt長:', prompt.length);
+
       const { data, error: fnError } = await supabase.functions.invoke('ai-analyze', {
-        body: { prompt: buildPrompt(items, today) },
+        body: { prompt },
       });
 
+      // ── Edge Function 自体の呼び出しエラー（ネットワーク・認証など）──
       if (fnError) {
+        console.error('[AI] Edge Functionエラー:', fnError.message, fnError);
         const msg =
           fnError.message?.includes('429') ? 'しばらく待ってから再試行してください' :
           fnError.message?.includes('529') ? 'Claudeサーバーが混雑しています。少し待ってください' :
-          'AI分析中にエラーが発生しました';
+          `AI分析エラー: ${fnError.message}`;
         setError(msg);
         return;
       }
 
+      // ── Edge Function が返したアプリレベルエラー ──
       if (data?.error) {
-        setError('AI分析中にエラーが発生しました');
+        const errDetail = typeof data.error === 'string'
+          ? data.error
+          : JSON.stringify(data.error);
+        console.error('[AI] Functionレスポンスエラー:', errDetail);
+
+        const msg =
+          errDetail.includes('ANTHROPIC_API_KEY not configured')
+            ? 'APIキーが未設定です（Supabase Secretsを確認してください）' :
+          errDetail.includes('prompt is required')
+            ? 'プロンプトが空です（アプリのバグ）' :
+          `AI分析エラー: ${errDetail}`;
+        setError(msg);
         return;
       }
 
-      setAdvice(data?.text || '（アドバイスを取得できませんでした）');
+      // ── 成功 ──
+      const text = data?.text ?? '';
+      console.log('[AI] 成功 テキスト長:', text.length);
+      setAdvice(text || '（アドバイスを取得できませんでした）');
     } catch (e: any) {
+      console.error('[AI] 予期しないエラー:', e);
       setError(e?.message ?? 'AI分析中にエラーが発生しました');
     } finally {
       setIsAnalyzing(false);
