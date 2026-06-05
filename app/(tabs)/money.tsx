@@ -5,7 +5,7 @@ import {
   Modal, Platform, ScrollView, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import InlineDatePicker from '@/components/InlineDatePicker';
@@ -79,8 +79,6 @@ function aggregateByCategory(expenses: { amount: number; category: string | null
 // メイン画面
 // ─────────────────────────────────────────────────────────────
 export default function MoneyScreen() {
-  const insets = useSafeAreaInsets();
-
   // ── 今月（固定）────────────────────────────────────────────
   const now       = new Date();
   const thisYear  = now.getFullYear();
@@ -378,7 +376,7 @@ export default function MoneyScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* ── ヘッダー ── */}
       <View style={styles.header}>
         <Text style={styles.title}>お金</Text>
@@ -426,12 +424,12 @@ export default function MoneyScreen() {
       {isLoading ? (
         <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />
       ) : (
-        <View style={{ flex: 1 }}>
+        <>
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
           {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
-        </View>
+        </>
       )}
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -660,7 +658,7 @@ export default function MoneyScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1205,7 +1203,7 @@ const styles = StyleSheet.create({
   monthNavText:    { fontSize: 16, fontWeight: '700', color: COLORS.gray900 },
   monthNavBackText:{ fontSize: 11, color: COLORS.primary, fontWeight: '600', marginTop: 2 },
 
-  tabScroll:     { height: 44, flexShrink: 0, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
+  tabScroll:     { flexShrink: 0, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
   tabContainer:  { paddingHorizontal: SPACING.sm + 4, gap: SPACING.sm, alignItems: 'center', paddingVertical: SPACING.xs + 2 },
   tabItem:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 3, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
   tabItemActive: { backgroundColor: COLORS.primary },
