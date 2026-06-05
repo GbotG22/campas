@@ -85,30 +85,26 @@ export function useAI() {
         body: { prompt },
       });
 
-      // ── Edge Function 自体の呼び出しエラー（ネットワーク・認証など）──
+      // fnError は Edge Function が非2xxを返したとき or ネットワークエラーのとき設定される。
+      // fnError.message は常に "Edge Function returned a non-2xx status code" のため
+      // 実際のエラー内容は fnError.context（レスポンスボディ）から取得する。
       if (fnError) {
-        console.error('[AI] Edge Functionエラー:', fnError.message, fnError);
+        const ctx    = (fnError as any).context as Record<string, unknown> | undefined;
+        const detail = typeof ctx?.error === 'string'
+          ? ctx.error
+          : JSON.stringify(ctx ?? fnError.message);
+
+        console.error('[AI] Edge Functionエラー context:', ctx, 'message:', fnError.message);
+
         const msg =
-          fnError.message?.includes('429') ? 'しばらく待ってから再試行してください' :
-          fnError.message?.includes('529') ? 'Claudeサーバーが混雑しています。少し待ってください' :
+          detail.includes('ANTHROPIC_API_KEY not configured')
+            ? 'APIキーが未設定です（管理者に連絡してください）' :
+          detail.includes('rate_limit_error')
+            ? 'レート制限中です。しばらく待ってから再試行してください' :
+          detail.includes('overloaded')
+            ? 'Claudeサーバーが混雑しています。少し待ってください' :
           `AI分析エラー: ${fnError.message}`;
-        setError(msg);
-        return;
-      }
 
-      // ── Edge Function が返したアプリレベルエラー ──
-      if (data?.error) {
-        const errDetail = typeof data.error === 'string'
-          ? data.error
-          : JSON.stringify(data.error);
-        console.error('[AI] Functionレスポンスエラー:', errDetail);
-
-        const msg =
-          errDetail.includes('ANTHROPIC_API_KEY not configured')
-            ? 'APIキーが未設定です（Supabase Secretsを確認してください）' :
-          errDetail.includes('prompt is required')
-            ? 'プロンプトが空です（アプリのバグ）' :
-          `AI分析エラー: ${errDetail}`;
         setError(msg);
         return;
       }
