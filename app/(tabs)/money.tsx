@@ -5,7 +5,7 @@ import {
   Modal, Platform, ScrollView, StyleSheet, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import InlineDatePicker from '@/components/InlineDatePicker';
@@ -79,6 +79,8 @@ function aggregateByCategory(expenses: { amount: number; category: string | null
 // メイン画面
 // ─────────────────────────────────────────────────────────────
 export default function MoneyScreen() {
+  const { top: topInset } = useSafeAreaInsets();
+
   // ── 今月（固定）────────────────────────────────────────────
   const now       = new Date();
   const thisYear  = now.getFullYear();
@@ -376,7 +378,7 @@ export default function MoneyScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={[styles.container, { paddingTop: topInset }]}>
       {/* ── ヘッダー ── */}
       <View style={[styles.header, { backgroundColor: 'yellow' }]}>
         <Text style={styles.title}>お金</Text>
@@ -658,7 +660,7 @@ export default function MoneyScreen() {
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
