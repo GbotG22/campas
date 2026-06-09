@@ -378,7 +378,7 @@ export default function MoneyScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* ── ヘッダー ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: 'yellow' }]}>
         <Text style={styles.title}>お金</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {tab === 'expenses' && (
@@ -393,7 +393,7 @@ export default function MoneyScreen() {
       </View>
 
       {/* ── 月ナビゲーター ── */}
-      <View style={styles.monthNav}>
+      <View style={[styles.monthNav, { backgroundColor: 'red' }]}>
         <TouchableOpacity onPress={prevMonth} style={styles.monthNavBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="chevron-back" size={22} color={COLORS.primary} />
         </TouchableOpacity>
@@ -411,7 +411,7 @@ export default function MoneyScreen() {
       </View>
 
       {/* ── サブタブ ── */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: 'blue' }]}>
         {([
           ['expenses', '支出'], ['subscriptions', 'サブスク'], ['incomes', '収入'], ['salary', '給料'],
         ] as [MoneyTab, string][]).map(([key, label]) => (
@@ -424,12 +424,12 @@ export default function MoneyScreen() {
       {isLoading ? (
         <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />
       ) : (
-        <>
+        <View style={{ flex: 1, backgroundColor: 'green' }}>
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
           {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
-        </>
+        </View>
       )}
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1186,7 +1186,7 @@ function Empty({ emoji, text }: { emoji: string; text: string }) {
 // スタイル
 // ─────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.gray50 },
+  container: { flex: 1, backgroundColor: 'magenta' },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm + 4 },
   title:  { fontSize: 22, fontWeight: '800', color: COLORS.gray900 },
