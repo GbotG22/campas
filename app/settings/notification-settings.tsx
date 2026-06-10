@@ -25,12 +25,15 @@ import {
   rescheduleAllEventNotifications,
   rescheduleAllPaydayNotifications,
   rescheduleAllFixedExpenseNotifications,
+  rescheduleAllClassNotifications,
 } from '@/lib/notifications';
 import { useShifts } from '@/hooks/useShifts';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useEvents } from '@/hooks/useEvents';
 import { useWorkplaces } from '@/hooks/useWorkplaces';
 import { useFixedExpenses } from '@/hooks/useFixedExpenses';
+import { useTimetable } from '@/hooks/useTimetable';
+import { usePeriodSettings } from '@/hooks/usePeriodSettings';
 
 const COLORS = {
   primary:    '#4F8EF7',
@@ -66,11 +69,13 @@ export default function NotificationSettingsScreen() {
   const [loading, setLoading]   = useState(true);
   const [saving,  setSaving]    = useState(false);
 
-  const { shifts }        = useShifts();
-  const { subscriptions }   = useSubscriptions();
-  const { events }          = useEvents();
-  const { workplaces }      = useWorkplaces();
-  const { fixedExpenses }   = useFixedExpenses();
+  const { shifts }           = useShifts();
+  const { subscriptions }    = useSubscriptions();
+  const { events }           = useEvents();
+  const { workplaces }       = useWorkplaces();
+  const { fixedExpenses }    = useFixedExpenses();
+  const { slots }            = useTimetable();
+  const { config: periodConfig } = usePeriodSettings();
 
   useEffect(() => {
     getDetailedNotificationSettings().then(s => {
@@ -98,11 +103,12 @@ export default function NotificationSettingsScreen() {
         rescheduleAllEventNotifications(events),
         rescheduleAllPaydayNotifications(workplaces),
         rescheduleAllFixedExpenseNotifications(fixedExpenses),
+        rescheduleAllClassNotifications(slots, periodConfig),
       ]);
     } finally {
       setSaving(false);
     }
-  }, [shifts, subscriptions, events, workplaces, fixedExpenses]);
+  }, [shifts, subscriptions, events, workplaces, fixedExpenses, slots, periodConfig]);
 
   const setMinutes = (
     key: 'shiftMinutes' | 'classMinutes',
@@ -149,10 +155,10 @@ export default function NotificationSettingsScreen() {
           />
         </Card>
 
-        {/* 授業通知（保存のみ・スケジュール未実装） */}
+        {/* 授業通知 */}
         <SectionHeader title="授業" icon="school-outline" />
         <Card>
-          <SegmentLabel label="開始前の通知タイミング" sub="※スケジュール機能実装後に有効化" />
+          <SegmentLabel label="開始前の通知タイミング" />
           <SegmentRow
             options={CLASS_OPTIONS}
             value={settings.classMinutes}

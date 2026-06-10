@@ -4,14 +4,21 @@
  * Expo Go で native module が利用できない場合でもクラッシュしないようにする
  */
 import type { Database } from '@/types/database';
-import { getDetailedNotificationSettings } from '@/lib/notificationSettings';
+import { getDetailedNotificationSettings, MinuteOption } from '@/lib/notificationSettings';
 
-type Assignment   = Database['public']['Tables']['assignments']['Row'];
-type Subscription = Database['public']['Tables']['subscriptions']['Row'];
-type AppEvent     = Database['public']['Tables']['events']['Row'];
-type ShiftRow     = Database['public']['Tables']['shifts']['Row'];
-type Workplace    = Database['public']['Tables']['workplaces']['Row'];
-type FixedExpense = Database['public']['Tables']['fixed_expenses']['Row'];
+type Assignment     = Database['public']['Tables']['assignments']['Row'];
+type Subscription   = Database['public']['Tables']['subscriptions']['Row'];
+type AppEvent       = Database['public']['Tables']['events']['Row'];
+type ShiftRow       = Database['public']['Tables']['shifts']['Row'];
+type Workplace      = Database['public']['Tables']['workplaces']['Row'];
+type FixedExpense   = Database['public']['Tables']['fixed_expenses']['Row'];
+type TimetableSlot  = Database['public']['Tables']['timetable_slots']['Row'];
+
+interface PeriodTime   { period: number; start: string; end: string; }
+interface PeriodConfig { periods: PeriodTime[]; }
+
+// app day_of_week (0=Mon...4=Fri) → expo weekday (1=Sun, 2=Mon...7=Sat)
+const APP_DAY_TO_EXPO_WEEKDAY: Record<number, number> = { 0: 2, 1: 3, 2: 4, 3: 5, 4: 6 };
 
 // ── イベント通知の対象タイプ ──────────────────────────────────────
 const NOTIFIABLE_EVENT_TYPES = ['assignment', 'test', 'report'] as const;
@@ -533,6 +540,81 @@ export async function rescheduleAllFixedExpenseNotifications(fixedExpenses: Fixe
     );
     for (const fe of fixedExpenses) {
       if (fe.is_active) await scheduleFixedExpenseNotification(fe);
+    }
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 授業通知（毎週繰り返し）
+// ═══════════════════════════════════════════════════════════
+
+export async function scheduleClassNotification(
+  slot: TimetableSlot,
+  periodConfig: PeriodConfig,
+  classMinutes: MinuteOption,
+): Promise<void> {
+  if (classMinutes === 0) return;
+  const N = getNotifications();
+  if (!N) return;
+
+  const pt = periodConfig.periods.find(p => p.period === slot.period);
+  if (!pt?.start) return;
+
+  const weekday = APP_DAY_TO_EXPO_WEEKDAY[slot.day_of_week];
+  if (!weekday) return;
+
+  const [hStr, mStr] = pt.start.split(':');
+  const totalMinutes = parseInt(hStr, 10) * 60 + parseInt(mStr, 10) - classMinutes;
+  if (totalMinutes < 0) return;
+
+  const hour   = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const minuteLabel = classMinutes >= 60 ? `${classMinutes / 60}時間` : `${classMinutes}分`;
+  const endStr = pt.end ?? '';
+
+  try {
+    await N.scheduleNotificationAsync({
+      identifier: `class_${slot.id}`,
+      content: {
+        title: `授業開始${minuteLabel}前`,
+        body:  `${slot.subject_name}\n${slot.period}限（${pt.start}〜${endStr}）\n\n${minuteLabel}後に開始します`,
+        sound: true,
+      },
+      trigger: {
+        type:    N.SchedulableTriggerInputTypes.WEEKLY,
+        weekday,
+        hour,
+        minute,
+      },
+    });
+  } catch { /* ignore */ }
+}
+
+export async function cancelClassNotification(id: string): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    await N.cancelScheduledNotificationAsync(`class_${id}`);
+  } catch { /* ignore */ }
+}
+
+export async function rescheduleAllClassNotifications(
+  slots: TimetableSlot[],
+  periodConfig: PeriodConfig,
+): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    const settings = await getDetailedNotificationSettings();
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(n => n.identifier.startsWith('class_'))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
+    if (settings.classMinutes === 0) return;
+    for (const slot of slots) {
+      await scheduleClassNotification(slot, periodConfig, settings.classMinutes);
     }
   } catch { /* ignore */ }
 }

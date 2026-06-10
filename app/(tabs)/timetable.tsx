@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS, SUBJECT_COLORS } from '@/constants/theme';
+import { rescheduleAllClassNotifications } from '@/lib/notifications';
 import { ATT_CONFIG, useAttendance }           from '@/hooks/useAttendance';
 import { fetchTodayEvents, ClassEvent }        from '@/hooks/useClassEvents';
 import { usePeriodSettings }                   from '@/hooks/usePeriodSettings';
@@ -141,6 +142,7 @@ export default function TimetableScreen() {
     });
     setSaving(false);
     if (error) { Alert.alert('エラー', '追加できませんでした'); return; }
+    rescheduleAllClassNotifications(slots, periodConfig).catch(() => {});
     closeSheet();
     setTimeout(() => {
       Alert.alert(
@@ -190,6 +192,7 @@ export default function TimetableScreen() {
       await addSlot({ ...copyData, day_of_week: d, period: p, google_calendar_event_id: null, semester: null });
     }
     setSaving(false);
+    rescheduleAllClassNotifications(slots, periodConfig).catch(() => {});
     setCopyVisible(false);
   }
 

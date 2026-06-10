@@ -17,6 +17,8 @@ import { useClassSchedules }                          from '@/hooks/useClassSche
 import { usePeriodSettings }                          from '@/hooks/usePeriodSettings';
 import { useAuthStore }                               from '@/stores/auth.store';
 import { supabase }                                   from '@/lib/supabase';
+import { cancelClassNotification, scheduleClassNotification } from '@/lib/notifications';
+import { getDetailedNotificationSettings } from '@/lib/notificationSettings';
 import { localYMD }                                   from '@/lib/dateUtils';
 import type { Database }                              from '@/types/database';
 
@@ -81,8 +83,13 @@ export default function SlotDetailScreen() {
       .select()
       .single();
     setEditSaving(false);
-    if (!error && data) { setSlot(data); setEditVisible(false); }
-    else Alert.alert('エラー', '更新できませんでした');
+    if (!error && data) {
+      setSlot(data);
+      setEditVisible(false);
+      getDetailedNotificationSettings().then(s => {
+        scheduleClassNotification(data, config, s.classMinutes).catch(() => {});
+      }).catch(() => {});
+    } else Alert.alert('エラー', '更新できませんでした');
   }
 
   function handleDelete() {
@@ -92,6 +99,7 @@ export default function SlotDetailScreen() {
         text: '削除', style: 'destructive',
         onPress: async () => {
           await supabase.from('timetable_slots').delete().eq('id', slot!.id);
+          cancelClassNotification(slot!.id).catch(() => {});
           router.back();
         },
       },
