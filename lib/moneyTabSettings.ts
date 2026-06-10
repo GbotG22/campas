@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MONEY_TABS_KEY = 'campas_money_tabs';
 
-export type MoneyTabKey = 'expenses' | 'subscriptions' | 'incomes' | 'salary' | 'cards' | 'fixed_expenses';
+export type MoneyTabKey = 'expenses' | 'subscriptions' | 'incomes' | 'salary' | 'cards';
 
 export type MoneyTabDef = {
   key: MoneyTabKey;
@@ -17,7 +17,6 @@ export const ALL_MONEY_TABS: MoneyTabDef[] = [
   { key: 'incomes',        label: '収入' },
   { key: 'salary',         label: '給料' },
   { key: 'cards',          label: 'カード' },
-  { key: 'fixed_expenses', label: '固定費' },
 ];
 
 const DEFAULT_ENABLED: Record<MoneyTabKey, boolean> = {
@@ -26,7 +25,6 @@ const DEFAULT_ENABLED: Record<MoneyTabKey, boolean> = {
   incomes:        true,
   salary:         true,
   cards:          false,
-  fixed_expenses: false,
 };
 
 export async function loadMoneyTabSettings(): Promise<Record<MoneyTabKey, boolean>> {

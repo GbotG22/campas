@@ -515,7 +515,6 @@ export default function MoneyScreen() {
     else if (tab === 'incomes')       openAddIncModal();
     else if (tab === 'salary')        openSalaryModal();
     else if (tab === 'cards')         openAddCardModal();
-    else if (tab === 'fixed_expenses') openAddFeModal();
   }
 
   return (
@@ -600,7 +599,6 @@ export default function MoneyScreen() {
               }
             </View>
           )}
-          {tab === 'fixed_expenses' && <FixedExpensesTab fixedExpenses={fixedExpenses} monthlyTotal={feMonthlyTotal} annualTotal={feAnnualTotal} onEdit={openEditFe} onDelete={async id => { await deleteFixedExpense(id); await cancelFixedExpenseNotification(id); }} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
           {tab === 'cards'         && <CardsTab cards={cards} expenses={allExpensesForCard} onEdit={openEditCard} onDelete={id => Alert.alert('削除', 'カードを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteCard(id) }])} />}
           {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
