@@ -11,6 +11,7 @@ type Subscription = Database['public']['Tables']['subscriptions']['Row'];
 type AppEvent     = Database['public']['Tables']['events']['Row'];
 type ShiftRow     = Database['public']['Tables']['shifts']['Row'];
 type Workplace    = Database['public']['Tables']['workplaces']['Row'];
+type FixedExpense = Database['public']['Tables']['fixed_expenses']['Row'];
 
 // ── イベント通知の対象タイプ ──────────────────────────────────────
 const NOTIFIABLE_EVENT_TYPES = ['assignment', 'test', 'report'] as const;
@@ -468,6 +469,70 @@ export async function rescheduleAllPaydayNotifications(workplaces: Workplace[]):
     );
     for (const wp of workplaces) {
       if (wp.is_active) await schedulePaydayNotification(wp);
+    }
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 固定費通知（支払日前日）
+// ═══════════════════════════════════════════════════════════
+
+function getNextFixedPaymentDate(paymentDay: number, today: Date = new Date()): Date {
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+  const lastDayThis = new Date(y, m + 1, 0).getDate();
+  const actualDay   = Math.min(paymentDay, lastDayThis);
+  if (d <= actualDay) return new Date(y, m, actualDay);
+  const nextM = m + 1;
+  return new Date(y, nextM, Math.min(paymentDay, new Date(y, nextM + 1, 0).getDate()));
+}
+
+export async function scheduleFixedExpenseNotification(fe: FixedExpense): Promise<void> {
+  try {
+    const settings = await getDetailedNotificationSettings();
+    const N = getNotifications();
+    if (!N || !settings.fixed1d) return;
+
+    const next = getNextFixedPaymentDate(fe.payment_day);
+    const triggerDate = new Date(next);
+    triggerDate.setDate(triggerDate.getDate() - 1);
+    triggerDate.setHours(9, 0, 0, 0);
+    if (triggerDate <= new Date()) return;
+
+    await N.scheduleNotificationAsync({
+      identifier: `fixed_${fe.id}_1d`,
+      content: {
+        title: '🏠 固定費の支払い明日です',
+        body:  `${fe.name}（¥${fe.amount.toLocaleString()}）の支払日は明日です`,
+        sound: true,
+        data:  { fixedExpenseId: fe.id, type: 'fixed_payment' },
+      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+    });
+  } catch { /* ignore */ }
+}
+
+export async function cancelFixedExpenseNotification(id: string): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    await N.cancelScheduledNotificationAsync(`fixed_${id}_1d`);
+  } catch { /* ignore */ }
+}
+
+export async function rescheduleAllFixedExpenseNotifications(fixedExpenses: FixedExpense[]): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(n => n.identifier.startsWith('fixed_'))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
+    for (const fe of fixedExpenses) {
+      if (fe.is_active) await scheduleFixedExpenseNotification(fe);
     }
   } catch { /* ignore */ }
 }

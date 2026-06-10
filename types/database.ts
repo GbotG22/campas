@@ -577,6 +577,49 @@ export type Database = {
       };
 
       // ──────────────────────────────────────────
+      // 固定費
+      // ──────────────────────────────────────────
+      fixed_expenses: {
+        Row: {
+          id:          string;
+          user_id:     string;
+          name:        string;
+          amount:      number;
+          payment_day: number;
+          category:    'rent' | 'electricity' | 'gas' | 'water' | 'telecom' | 'insurance' | 'other';
+          memo:        string | null;
+          is_active:   boolean;
+          created_at:  string;
+          updated_at:  string;
+        };
+        Insert: {
+          id?:          string;
+          user_id:      string;
+          name:         string;
+          amount:       number;
+          payment_day:  number;
+          category?:    'rent' | 'electricity' | 'gas' | 'water' | 'telecom' | 'insurance' | 'other';
+          memo?:        string | null;
+          is_active?:   boolean;
+          created_at?:  string;
+          updated_at?:  string;
+        };
+        Update: {
+          id?:          string;
+          user_id?:     string;
+          name?:        string;
+          amount?:      number;
+          payment_day?: number;
+          category?:    'rent' | 'electricity' | 'gas' | 'water' | 'telecom' | 'insurance' | 'other';
+          memo?:        string | null;
+          is_active?:   boolean;
+          created_at?:  string;
+          updated_at?:  string;
+        };
+        Relationships: [];
+      };
+
+      // ──────────────────────────────────────────
       // 支出
       // ──────────────────────────────────────────
       credit_cards: {

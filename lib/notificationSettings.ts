@@ -21,6 +21,7 @@ const DETAIL_KEYS = {
   sub7d:         'campas_notif_sub_7d',
   sub3d:         'campas_notif_sub_3d',
   sub1d:         'campas_notif_sub_1d',
+  fixed1d:       'campas_notif_fixed_1d',
 } as const;
 
 // ── 型定義 ────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ export interface DetailedNotificationSettings {
   sub7d:         boolean;      // デフォルト false
   sub3d:         boolean;      // デフォルト true
   sub1d:         boolean;      // デフォルト false
+  fixed1d:       boolean;      // デフォルト true（固定費 前日通知）
 }
 
 export const DEFAULT_DETAILED_SETTINGS: DetailedNotificationSettings = {
@@ -54,6 +56,7 @@ export const DEFAULT_DETAILED_SETTINGS: DetailedNotificationSettings = {
   sub7d:        false,
   sub3d:        true,
   sub1d:        false,
+  fixed1d:      true,
 };
 
 // ── 後方互換用（既存コードから呼ばれる可能性があるため残す） ──
@@ -122,6 +125,7 @@ export async function getDetailedNotificationSettings(): Promise<DetailedNotific
       sub7d:         parseBool(get(DETAIL_KEYS.sub7d),    DEFAULT_DETAILED_SETTINGS.sub7d),
       sub3d:         parseBool(get(DETAIL_KEYS.sub3d),    DEFAULT_DETAILED_SETTINGS.sub3d),
       sub1d:         parseBool(get(DETAIL_KEYS.sub1d),    DEFAULT_DETAILED_SETTINGS.sub1d),
+      fixed1d:       parseBool(get(DETAIL_KEYS.fixed1d),  DEFAULT_DETAILED_SETTINGS.fixed1d),
     };
   } catch {
     return { ...DEFAULT_DETAILED_SETTINGS };
@@ -145,6 +149,7 @@ export async function saveDetailedNotificationSettings(
       [DETAIL_KEYS.sub7d,        String(s.sub7d)],
       [DETAIL_KEYS.sub3d,        String(s.sub3d)],
       [DETAIL_KEYS.sub1d,        String(s.sub1d)],
+      [DETAIL_KEYS.fixed1d,      String(s.fixed1d)],
     ]);
   } catch { /* ignore */ }
 }

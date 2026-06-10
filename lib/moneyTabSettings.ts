@@ -13,11 +13,11 @@ export type MoneyTabDef = {
 
 export const ALL_MONEY_TABS: MoneyTabDef[] = [
   { key: 'expenses',       label: '支出',   required: true },
-  { key: 'subscriptions',  label: 'サブスク' },
+  { key: 'subscriptions',  label: '定期' },
   { key: 'incomes',        label: '収入' },
   { key: 'salary',         label: '給料' },
   { key: 'cards',          label: 'カード' },
-  { key: 'fixed_expenses', label: '固定費', disabled: true },
+  { key: 'fixed_expenses', label: '固定費' },
 ];
 
 const DEFAULT_ENABLED: Record<MoneyTabKey, boolean> = {

@@ -13,6 +13,8 @@ import InlineTimePicker from '@/components/InlineTimePicker';
 import { COLORS, SPACING, RADIUS, SHADOW, SUBJECT_COLORS } from '@/constants/theme';
 import { resolveServiceIcon } from '@/constants/serviceIcons';
 import { useCreditCards, getClosingPeriod, getPaymentDate, CreditCard } from '@/hooks/useCreditCards';
+import { useFixedExpenses, FIXED_EXPENSE_CATEGORIES, getCategoryDef, getNextPaymentDate, type FixedExpense, type FixedExpenseCategory } from '@/hooks/useFixedExpenses';
+import { scheduleFixedExpenseNotification, cancelFixedExpenseNotification } from '@/lib/notifications';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useIncomes, INCOME_TYPE_CONFIG } from '@/hooks/useIncomes';
 import { useShifts, calcWage, formatMinutes, calcWorkMinutes } from '@/hooks/useShifts';
@@ -107,6 +109,7 @@ export default function MoneyScreen() {
   const { expenses: prevExpenses } = useExpenses(prevMonthYear, prevMonthMonth);
   const allExpensesForCard = useMemo(() => [...expenses, ...prevExpenses], [expenses, prevExpenses]);
   const { cards, loading: cardLoading, addCard, updateCard, deleteCard } = useCreditCards();
+  const { fixedExpenses, loading: feLoading, monthlyTotal: feMonthlyTotal, annualTotal: feAnnualTotal, addFixedExpense, updateFixedExpense, deleteFixedExpense } = useFixedExpenses();
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subTotal } = useSubscriptions();
   const { incomes, salaryRecords: salaryRecordsRaw, isLoading: incLoading, addIncome, deleteIncome, addSalaryRecord, deleteSalaryRecord } = useIncomes();
   const { workplaces, isLoading: wpLoading, addWorkplace, updateWorkplace, deleteWorkplace } = useWorkplaces();
@@ -444,6 +447,51 @@ export default function MoneyScreen() {
     setCardSaving(false);
   }
 
+  // ── 固定費 追加/編集モーダル ──────────────────────────────
+  const [feModal, setFeModal]               = useState(false);
+  const [editingFe, setEditingFe]           = useState<FixedExpense | null>(null);
+  const [feName, setFeName]                 = useState('');
+  const [feAmount, setFeAmount]             = useState('');
+  const [feDay, setFeDay]                   = useState('');
+  const [feCategory, setFeCategory]         = useState<FixedExpenseCategory>('other');
+  const [feMemo, setFeMemo]                 = useState('');
+  const [feSaving, setFeSaving]             = useState(false);
+  // 定期タブ内セグメント: 'subscriptions' | 'fixed_expenses'
+  const [recurringSegment, setRecurringSegment] = useState<'subscriptions' | 'fixed_expenses'>('subscriptions');
+
+  function openAddFeModal() {
+    setEditingFe(null);
+    setFeName(''); setFeAmount(''); setFeDay(''); setFeCategory('other'); setFeMemo('');
+    setFeModal(true);
+  }
+  function openEditFe(fe: FixedExpense) {
+    setEditingFe(fe);
+    setFeName(fe.name); setFeAmount(String(fe.amount)); setFeDay(String(fe.payment_day));
+    setFeCategory(fe.category); setFeMemo(fe.memo ?? '');
+    setFeModal(true);
+  }
+  async function handleSaveFe() {
+    const amount = parseInt(feAmount, 10);
+    const day    = parseInt(feDay, 10);
+    if (!feName.trim()) { Alert.alert('入力エラー', '名前を入力してください'); return; }
+    if (isNaN(amount) || amount <= 0) { Alert.alert('入力エラー', '金額を入力してください'); return; }
+    if (isNaN(day) || day < 1 || day > 31) { Alert.alert('入力エラー', '支払日は1〜31で入力してください'); return; }
+    setFeSaving(true);
+    try {
+      const payload = { name: feName.trim(), amount, payment_day: day, category: feCategory, memo: feMemo.trim() || null };
+      if (editingFe) {
+        const updated = await updateFixedExpense(editingFe.id, payload);
+        await cancelFixedExpenseNotification(editingFe.id);
+        await scheduleFixedExpenseNotification(updated);
+      } else {
+        const created = await addFixedExpense({ ...payload, is_active: true });
+        await scheduleFixedExpenseNotification(created);
+      }
+      setFeModal(false);
+    } catch (e: any) { Alert.alert('エラー', e.message); }
+    setFeSaving(false);
+  }
+
   // ── 集計 ──────────────────────────────────────────────────
   const remaining  = budget !== null ? budget - expTotal : null;
   const usageRate  = budget ? Math.min(expTotal / budget, 1) : 0;
@@ -455,15 +503,19 @@ export default function MoneyScreen() {
   const monthlyIncomeTotal = useMemo(() => selMonthIncomes.reduce((s, i) => s + i.amount, 0), [selMonthIncomes]);
   const thisMonthShifts    = getForMonth(selYear, selMonth);
 
-  const isLoading = expLoading || subLoading || incLoading || wpLoading || shiftLoading || cardLoading;
+  const isLoading = expLoading || subLoading || incLoading || wpLoading || shiftLoading || cardLoading || feLoading;
 
   // ── FAB押下 ──────────────────────────────────────────────
   function handleAdd() {
-    if (tab === 'expenses')           openAddExpModal();
-    else if (tab === 'subscriptions') openSubModal();
+    if (tab === 'expenses')      openAddExpModal();
+    else if (tab === 'subscriptions') {
+      if (recurringSegment === 'subscriptions') openSubModal();
+      else openAddFeModal();
+    }
     else if (tab === 'incomes')       openAddIncModal();
     else if (tab === 'salary')        openSalaryModal();
     else if (tab === 'cards')         openAddCardModal();
+    else if (tab === 'fixed_expenses') openAddFeModal();
   }
 
   return (
@@ -529,7 +581,26 @@ export default function MoneyScreen() {
       ) : (
         <View style={{ flex: 1 }}>
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
-          {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
+          {tab === 'subscriptions' && (
+            <View style={{ flex: 1 }}>
+              {/* セグメント: サブスク / 固定費 */}
+              <View style={{ flexDirection: 'row', margin: SPACING.md, backgroundColor: COLORS.gray100, borderRadius: RADIUS.full, padding: 3 }}>
+                {(['subscriptions', 'fixed_expenses'] as const).map((seg, i) => (
+                  <TouchableOpacity key={seg} onPress={() => setRecurringSegment(seg)}
+                    style={{ flex: 1, paddingVertical: 7, borderRadius: RADIUS.full, alignItems: 'center', backgroundColor: recurringSegment === seg ? COLORS.white : 'transparent' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: recurringSegment === seg ? COLORS.gray900 : COLORS.gray500 }}>
+                      {i === 0 ? 'サブスク' : '固定費'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {recurringSegment === 'subscriptions'
+                ? <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />
+                : <FixedExpensesTab fixedExpenses={fixedExpenses} monthlyTotal={feMonthlyTotal} annualTotal={feAnnualTotal} onEdit={openEditFe} onDelete={async id => { await deleteFixedExpense(id); await cancelFixedExpenseNotification(id); }} />
+              }
+            </View>
+          )}
+          {tab === 'fixed_expenses' && <FixedExpensesTab fixedExpenses={fixedExpenses} monthlyTotal={feMonthlyTotal} annualTotal={feAnnualTotal} onEdit={openEditFe} onDelete={async id => { await deleteFixedExpense(id); await cancelFixedExpenseNotification(id); }} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
           {tab === 'cards'         && <CardsTab cards={cards} expenses={allExpensesForCard} onEdit={openEditCard} onDelete={id => Alert.alert('削除', 'カードを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteCard(id) }])} />}
           {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
@@ -821,6 +892,47 @@ export default function MoneyScreen() {
                     { text: '削除', style: 'destructive', onPress: async () => { await deleteCard(editingCard.id); setCardModal(false); } },
                   ])}>
                   <Text style={{ color: '#EF4444', fontWeight: '600' }}>このカードを削除</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── 固定費 追加/編集モーダル ── */}
+      <Modal visible={feModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <ModalHeader title={editingFe ? '固定費を編集' : '固定費を追加'} onCancel={() => setFeModal(false)} onSave={handleSaveFe} saveLabel={feSaving ? '保存中...' : editingFe ? '更新' : '追加'} disabled={feSaving} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
+              <Text style={styles.inputLabel}>名前 *</Text>
+              <TextInput style={styles.input} placeholder="例: 家賃" value={feName} onChangeText={setFeName} autoFocus />
+              <Text style={styles.inputLabel}>金額（円）*</Text>
+              <TextInput style={styles.input} placeholder="例: 75000" value={feAmount} onChangeText={setFeAmount} keyboardType="number-pad" />
+              <Text style={styles.inputLabel}>支払日 *</Text>
+              <TextInput style={styles.input} placeholder="例: 27（末日は31）" value={feDay} onChangeText={setFeDay} keyboardType="number-pad" />
+              <Text style={styles.inputLabel}>カテゴリ</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                {FIXED_EXPENSE_CATEGORIES.map(cat => (
+                  <TouchableOpacity key={cat.key} onPress={() => setFeCategory(cat.key)}
+                    style={[styles.chip, { borderColor: cat.color }, feCategory === cat.key && { backgroundColor: cat.color }]}>
+                    <Text style={[styles.chipText, feCategory === cat.key && { color: '#fff' }]}>{cat.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.inputLabel}>メモ（任意）</Text>
+              <TextInput style={[styles.input, { height: 72, textAlignVertical: 'top' }]} placeholder="例: 東京電力" value={feMemo} onChangeText={setFeMemo} multiline />
+              {editingFe && (
+                <TouchableOpacity style={styles.deleteModalBtn}
+                  onPress={() => Alert.alert('削除', `${editingFe.name}を削除しますか？`, [
+                    { text: 'キャンセル', style: 'cancel' },
+                    { text: '削除', style: 'destructive', onPress: async () => {
+                      await deleteFixedExpense(editingFe.id);
+                      await cancelFixedExpenseNotification(editingFe.id);
+                      setFeModal(false);
+                    }},
+                  ])}>
+                  <Text style={styles.deleteModalBtnText}>🗑 この固定費を削除する</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -1467,6 +1579,117 @@ function CardsTab({ cards, expenses, onEdit, onDelete }: {
               <Text style={{ fontSize: 11, color: COLORS.gray400 }}>
                 集計期間: {startYMD} ～ {endYMD}（{cardExpenses.length}件）
               </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 固定費タブ
+// ─────────────────────────────────────────────────────────────
+function FixedExpensesTab({
+  fixedExpenses, monthlyTotal, annualTotal, onEdit, onDelete,
+}: {
+  fixedExpenses: FixedExpense[];
+  monthlyTotal: number;
+  annualTotal: number;
+  onEdit: (fe: FixedExpense) => void;
+  onDelete: (id: string) => void;
+}) {
+  const today = new Date();
+
+  if (fixedExpenses.length === 0) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <Ionicons name="home-outline" size={48} color={COLORS.gray300} />
+        <Text style={{ color: COLORS.gray400, fontSize: 15 }}>固定費がありません</Text>
+        <Text style={{ color: COLORS.gray300, fontSize: 13 }}>右上の「＋ 追加」で登録してください</Text>
+      </View>
+    );
+  }
+
+  // 次回支払いが最も近い固定費
+  const sorted = [...fixedExpenses].sort((a, b) =>
+    getNextPaymentDate(a.payment_day, today).getTime() - getNextPaymentDate(b.payment_day, today).getTime(),
+  );
+  const next = sorted[0];
+  const nextDate = getNextPaymentDate(next.payment_day, today);
+  const nextDef  = getCategoryDef(next.category);
+
+  // カテゴリ別集計
+  const catTotals: Record<string, number> = {};
+  for (const fe of fixedExpenses) {
+    catTotals[fe.category] = (catTotals[fe.category] ?? 0) + fe.amount;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md }}>
+      {/* サマリーカード */}
+      <View style={{ backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm, ...SHADOW.sm }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ fontSize: 12, color: COLORS.gray400 }}>今月の固定費合計</Text>
+            <Text style={{ fontSize: 26, fontWeight: '800', color: COLORS.gray900 }}>¥{monthlyTotal.toLocaleString()}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ fontSize: 12, color: COLORS.gray400 }}>年間固定費</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.gray700 }}>¥{annualTotal.toLocaleString()}</Text>
+          </View>
+        </View>
+        <View style={{ height: 0.5, backgroundColor: COLORS.gray100 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Ionicons name={nextDef.icon as any} size={16} color={nextDef.color} />
+          <Text style={{ fontSize: 13, color: COLORS.gray500 }}>
+            次回: {next.name}（¥{next.amount.toLocaleString()}）— {nextDate.getMonth()+1}月{nextDate.getDate()}日
+          </Text>
+        </View>
+      </View>
+
+      {/* カテゴリ別内訳 */}
+      <View style={{ backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: SPACING.md, ...SHADOW.sm }}>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.gray700, marginBottom: SPACING.sm }}>カテゴリ別内訳</Text>
+        {FIXED_EXPENSE_CATEGORIES.filter(cat => catTotals[cat.key]).map(cat => {
+          const total = catTotals[cat.key]!;
+          const pct   = monthlyTotal > 0 ? total / monthlyTotal : 0;
+          return (
+            <View key={cat.key} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name={cat.icon as any} size={14} color={cat.color} />
+                  <Text style={{ fontSize: 13, color: COLORS.gray700 }}>{cat.label}</Text>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.gray900 }}>¥{total.toLocaleString()}</Text>
+              </View>
+              <View style={{ height: 4, backgroundColor: COLORS.gray100, borderRadius: 2 }}>
+                <View style={{ height: 4, width: `${Math.round(pct * 100)}%`, backgroundColor: cat.color, borderRadius: 2 }} />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* 固定費一覧 */}
+      <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.gray600, marginTop: SPACING.xs }}>支払日順</Text>
+      {fixedExpenses.map(fe => {
+        const def      = getCategoryDef(fe.category);
+        const nextPay  = getNextPaymentDate(fe.payment_day, today);
+        const dayLabel = fe.payment_day === 31 ? '末日' : `${fe.payment_day}日`;
+        return (
+          <TouchableOpacity key={fe.id} onPress={() => onEdit(fe)}
+            style={{ backgroundColor: COLORS.white, borderRadius: RADIUS.lg, flexDirection: 'row', alignItems: 'center', padding: SPACING.md, gap: SPACING.sm, ...SHADOW.sm }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: def.color + '22', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={def.icon as any} size={20} color={def.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: COLORS.gray900 }}>{fe.name}</Text>
+              <Text style={{ fontSize: 12, color: COLORS.gray400 }}>毎月{dayLabel} — 次回 {nextPay.getMonth()+1}月{nextPay.getDate()}日</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.gray900 }}>¥{fe.amount.toLocaleString()}</Text>
+              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>{def.label}</Text>
             </View>
           </TouchableOpacity>
         );

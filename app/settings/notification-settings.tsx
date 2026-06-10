@@ -24,11 +24,13 @@ import {
   rescheduleSubscriptionNotifications,
   rescheduleAllEventNotifications,
   rescheduleAllPaydayNotifications,
+  rescheduleAllFixedExpenseNotifications,
 } from '@/lib/notifications';
 import { useShifts } from '@/hooks/useShifts';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useEvents } from '@/hooks/useEvents';
 import { useWorkplaces } from '@/hooks/useWorkplaces';
+import { useFixedExpenses } from '@/hooks/useFixedExpenses';
 
 const COLORS = {
   primary:    '#4F8EF7',
@@ -65,9 +67,10 @@ export default function NotificationSettingsScreen() {
   const [saving,  setSaving]    = useState(false);
 
   const { shifts }        = useShifts();
-  const { subscriptions } = useSubscriptions();
-  const { events }        = useEvents();
-  const { workplaces }    = useWorkplaces();
+  const { subscriptions }   = useSubscriptions();
+  const { events }          = useEvents();
+  const { workplaces }      = useWorkplaces();
+  const { fixedExpenses }   = useFixedExpenses();
 
   useEffect(() => {
     getDetailedNotificationSettings().then(s => {
@@ -94,11 +97,12 @@ export default function NotificationSettingsScreen() {
         rescheduleSubscriptionNotifications(subscriptions),
         rescheduleAllEventNotifications(events),
         rescheduleAllPaydayNotifications(workplaces),
+        rescheduleAllFixedExpenseNotifications(fixedExpenses),
       ]);
     } finally {
       setSaving(false);
     }
-  }, [shifts, subscriptions, events, workplaces]);
+  }, [shifts, subscriptions, events, workplaces, fixedExpenses]);
 
   const setMinutes = (
     key: 'shiftMinutes' | 'classMinutes',
@@ -197,6 +201,16 @@ export default function NotificationSettingsScreen() {
             label="当日"
             value={settings.payday0d}
             onToggle={() => toggleBool('payday0d')}
+          />
+        </Card>
+
+        {/* 固定費通知 */}
+        <SectionHeader title="固定費" icon="home-outline" />
+        <Card>
+          <CheckRow
+            label="前日"
+            value={settings.fixed1d}
+            onToggle={() => toggleBool('fixed1d')}
           />
         </Card>
 
