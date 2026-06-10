@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS } from '@/constants/theme';
 import MonthCalendar, { CalendarMarker } from '@/components/MonthCalendar';
 import { useAuthStore }        from '@/stores/auth.store';
+import { useProfileStore }     from '@/stores/profile.store';
 import { useSubscriptions }    from '@/hooks/useSubscriptions';
 import { useEvents, EVENT_CONFIG }   from '@/hooks/useEvents';
 import { useShifts }           from '@/hooks/useShifts';
@@ -30,6 +31,7 @@ const ATT_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent'];
 
 export default function HomeScreen() {
   const { user }  = useAuthStore();
+  const { displayName } = useProfileStore();
   const { monthlyTotal: subTotal }                          = useSubscriptions();
   const { events, getForDate: getEvents, getUpcoming, toggleDone } = useEvents();
   const { shifts, getForDate: getShifts, getNextShift }      = useShifts();
@@ -42,8 +44,8 @@ export default function HomeScreen() {
   const hour     = today.getHours();
   const greeting = hour < 10 ? 'おはようございます' : hour < 18 ? 'こんにちは' : 'お疲れ様です';
 
-  // メールアドレスの @ 前をユーザー名として使用（例: kazuki@gmail.com → kazuki）
-  const userName = user?.email?.split('@')[0] ?? '';
+  // 表示名: displayName → メール@前 の順でフォールバック
+  const userName = displayName ?? user?.email?.split('@')[0] ?? '';
 
   // ── カレンダー月制御 ──────────────────────────────────────
   const [calYear,  setCalYear]  = useState(today.getFullYear());

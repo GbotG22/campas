@@ -11,10 +11,12 @@ import {
 } from '@/lib/notifications';
 import { useAuthStore } from '@/stores/auth.store';
 import { useEntitlementStore } from '@/stores/entitlement.store';
+import { useProfileStore } from '@/stores/profile.store';
 
 export default function RootLayout() {
   const { setSession } = useAuthStore();
   const { refresh: refreshEntitlements } = useEntitlementStore();
+  const { fetch: fetchProfile } = useProfileStore();
 
   useEffect(() => {
     // 通知ハンドラー・カテゴリ登録・権限リクエスト（失敗しても続行）
@@ -26,10 +28,10 @@ export default function RootLayout() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
-        // RevenueCat 初期化（Expo Go では no-op）
         configureRevenueCat(session.user.id)
           .then(refreshEntitlements)
           .catch(() => {});
+        fetchProfile().catch(() => {});
       }
     }).catch(() => {});
 
@@ -39,6 +41,7 @@ export default function RootLayout() {
         configureRevenueCat(session.user.id)
           .then(refreshEntitlements)
           .catch(() => {});
+        fetchProfile().catch(() => {});
       }
     });
 

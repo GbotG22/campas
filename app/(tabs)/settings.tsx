@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
 import { useAuthStore } from '@/stores/auth.store';
+import { useProfileStore } from '@/stores/profile.store';
 import { usePremium } from '@/hooks/usePremium';
 import { IS_REVENUECAT_CONFIGURED } from '@/lib/revenuecat';
 import { supabase } from '@/lib/supabase';
@@ -24,7 +25,29 @@ const DEV_AI_PLUS_KEY  = 'campas_dev_ai_plus';
 
 export default function SettingsScreen() {
   const { user, signOut, deleteAccount } = useAuthStore();
+  const { displayName, update: updateProfile } = useProfileStore();
   const { isPremium, isAiPlus, isLoading: planLoading, refresh } = usePremium();
+
+  // ── 表示名編集 ─────────────────────────────────────────────
+  const [nameInput,   setNameInput]   = useState('');
+  const [nameEditing, setNameEditing] = useState(false);
+  const [nameSaving,  setNameSaving]  = useState(false);
+
+  useEffect(() => {
+    setNameInput(displayName ?? '');
+  }, [displayName]);
+
+  async function handleSaveName() {
+    if (nameSaving) return;
+    setNameSaving(true);
+    const { error } = await updateProfile(nameInput);
+    setNameSaving(false);
+    if (error) {
+      Alert.alert('保存に失敗しました', error);
+    } else {
+      setNameEditing(false);
+    }
+  }
 
   // ── dev フラグ状態（RevenueCat 未構成時のみ使用）────────────
   const [devPremium, setDevPremium] = useState(false);
@@ -151,8 +174,8 @@ export default function SettingsScreen() {
     }
   }
 
-  // ── メールアドレスの先頭文字（アバター用）───────────────
-  const avatarLetter = user?.email?.[0]?.toUpperCase() ?? '?';
+  // ── アバター文字：表示名 → メール @ 前 の順でフォールバック
+  const avatarLetter = (displayName ?? user?.email?.split('@')[0] ?? '?')[0]?.toUpperCase() ?? '?';
 
   // ── 登録日のフォーマット ─────────────────────────────────
   const joinedDate = user?.created_at
@@ -181,6 +204,9 @@ export default function SettingsScreen() {
             <Text style={styles.avatarText}>{avatarLetter}</Text>
           </View>
           <View style={styles.userInfo}>
+            {displayName ? (
+              <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
+            ) : null}
             <Text style={styles.userEmail} numberOfLines={1}>
               {user?.email ?? '不明'}
             </Text>
@@ -215,6 +241,42 @@ export default function SettingsScreen() {
         {/* ── セクション：アカウント ── */}
         <SectionLabel label="アカウント" />
         <View style={styles.menuCard}>
+          {/* 表示名 */}
+          <View style={styles.nameRow}>
+            <View style={styles.nameRowLeft}>
+              <Ionicons name="person-outline" size={20} color={COLORS.gray500} style={styles.rowIcon} />
+              <Text style={styles.rowLabel}>表示名</Text>
+            </View>
+            {nameEditing ? (
+              <View style={styles.nameEditRight}>
+                <TextInput
+                  style={styles.nameInput}
+                  value={nameInput}
+                  onChangeText={setNameInput}
+                  placeholder="名前を入力（30文字以内）"
+                  placeholderTextColor={COLORS.gray400}
+                  maxLength={30}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleSaveName}
+                />
+                <TouchableOpacity onPress={handleSaveName} disabled={nameSaving} style={styles.nameSaveBtn}>
+                  <Text style={styles.nameSaveBtnText}>{nameSaving ? '保存中' : '保存'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setNameEditing(false); setNameInput(displayName ?? ''); }} style={styles.nameCancelBtn}>
+                  <Text style={styles.nameCancelBtnText}>キャンセル</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.nameDisplayRight} onPress={() => setNameEditing(true)}>
+                <Text style={[styles.nameValue, !displayName && styles.namePlaceholder]}>
+                  {displayName ?? '未設定'}
+                </Text>
+                <Ionicons name="pencil-outline" size={14} color={COLORS.gray400} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={styles.divider} />
           <SettingsRow
             icon="mail-outline"
             label="メールアドレス"
@@ -552,10 +614,15 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   userInfo:  { flex: 1 },
-  userEmail: {
-    fontSize: 15,
+  userName: {
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.gray900,
+  },
+  userEmail: {
+    fontSize: 13,
+    color: COLORS.gray500,
+    marginTop: 1,
   },
   userSince: {
     fontSize: 12,
@@ -595,9 +662,80 @@ const styles = StyleSheet.create({
   // 最後の行は下ボーダーなし
   rowLast: { borderBottomWidth: 0 },
   rowLabel: {
-    flex: 1,
     fontSize: 15,
     color: COLORS.gray900,
+  },
+
+  // ── 表示名行 ──────────────────────────────────────────────
+  rowIcon: { width: 24, textAlign: 'center' },
+
+  // ── 表示名行 ──────────────────────────────────────────────
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 4,
+    minHeight: 52,
+  },
+  nameRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm + 2,
+    marginRight: SPACING.sm,
+  },
+  nameDisplayRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  nameValue: {
+    fontSize: 13,
+    color: COLORS.gray900,
+    textAlign: 'right',
+  },
+  namePlaceholder: {
+    color: COLORS.gray400,
+  },
+  nameEditRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nameInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.gray900,
+    borderBottomWidth: 1.5,
+    borderBottomColor: COLORS.primary,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  nameSaveBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  nameSaveBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  nameCancelBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  nameCancelBtnText: {
+    fontSize: 13,
+    color: COLORS.gray400,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.gray100,
+    marginHorizontal: SPACING.md,
   },
   rowValue: {
     fontSize: 13,
