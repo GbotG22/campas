@@ -3,6 +3,7 @@ import * as Calendar from 'expo-calendar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert, Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { localYMD } from '@/lib/dateUtils';
 
 const STORAGE_KEY       = 'native_cal_connected';
 const FETCH_DAYS_PAST   = 30;
@@ -32,7 +33,7 @@ export interface UseNativeCalendarResult {
 }
 
 function toYMD(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return localYMD(date);
 }
 
 function toHM(date: Date): string {

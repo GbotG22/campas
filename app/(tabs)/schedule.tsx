@@ -39,9 +39,10 @@ import { useNativeCalendar, NativeCalEvent } from '@/hooks/useNativeCalendar';
 import { useAI, AIScheduleItem } from '@/hooks/useAI';
 import { usePremium } from '@/hooks/usePremium';
 import type { EventType } from '@/types/database';
+import { localYMD } from '@/lib/dateUtils';
 
-const TODAY    = new Date().toISOString().split('T')[0];
-const TOMORROW = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })();
+const TODAY    = localYMD(new Date());
+const TOMORROW = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return localYMD(d); })();
 
 const GCAL_COLOR   = '#4285F4'; // Google ブルー
 const NATIVE_COLOR = '#34C759'; // Apple グリーン

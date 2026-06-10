@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { useAuthStore } from '@/stores/auth.store';
 import { useEventsStore, AppEvent } from '@/stores/events.store';
+import { localYMD } from '@/lib/dateUtils';
 import type { Database, EventType } from '@/types/database';
 
 export type { AppEvent } from '@/stores/events.store';
@@ -45,9 +46,9 @@ export function useEvents() {
     );
 
   const getUpcoming = (days = 7): AppEvent[] => {
-    const today    = new Date().toISOString().split('T')[0];
+    const today    = localYMD(new Date());
     const limit    = new Date(); limit.setDate(limit.getDate() + days);
-    const limitStr = limit.toISOString().split('T')[0];
+    const limitStr = localYMD(limit);
     return store.events.filter(e =>
       !e.is_done &&
       e.start_date >= today &&

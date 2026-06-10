@@ -7,6 +7,7 @@ import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS } from '@/constants/theme';
 import MonthCalendar, { CalendarMarker } from '@/components/MonthCalendar';
 import { useAuthStore }        from '@/stores/auth.store';
 import { useProfileStore }     from '@/stores/profile.store';
+import { localYMD }            from '@/lib/dateUtils';
 import { useSubscriptions }    from '@/hooks/useSubscriptions';
 import { useEvents, EVENT_CONFIG }   from '@/hooks/useEvents';
 import { useShifts }           from '@/hooks/useShifts';
@@ -21,7 +22,7 @@ import type { Database }       from '@/types/database';
 type TimetableSlot = Database['public']['Tables']['timetable_slots']['Row'];
 
 const today    = new Date();
-const todayStr = today.toISOString().split('T')[0];
+const todayStr = localYMD(today);
 const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
 
 function getYM(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
@@ -113,7 +114,7 @@ export default function HomeScreen() {
   const selLabel = useMemo(() => {
     if (selDate === todayStr) return '今日';
     const tm = new Date(today); tm.setDate(tm.getDate() + 1);
-    if (selDate === tm.toISOString().split('T')[0]) return '明日';
+    if (selDate === localYMD(tm)) return '明日';
     return fmt(new Date(selDate));
   }, [selDate]);
 

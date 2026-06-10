@@ -17,11 +17,12 @@ import { useClassSchedules }                          from '@/hooks/useClassSche
 import { usePeriodSettings }                          from '@/hooks/usePeriodSettings';
 import { useAuthStore }                               from '@/stores/auth.store';
 import { supabase }                                   from '@/lib/supabase';
+import { localYMD }                                   from '@/lib/dateUtils';
 import type { Database }                              from '@/types/database';
 
 type Slot = Database['public']['Tables']['timetable_slots']['Row'];
 
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = localYMD(new Date());
 
 
 export default function SlotDetailScreen() {

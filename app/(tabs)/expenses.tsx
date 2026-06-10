@@ -11,6 +11,7 @@ import { COLORS } from '@/constants/theme';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
+import { localYMD } from '@/lib/dateUtils';
 import type { Database } from '@/types/database';
 
 const CATEGORIES = ['食費', '飲み会', '交通', 'サブスク', '書籍', '娯楽', 'その他'] as const;
@@ -97,7 +98,7 @@ export default function ExpensesScreen() {
     setSaving(true);
     const error = await addExpense({
       title: expTitle.trim(), amount, category: expCategory,
-      paid_at: new Date().toISOString().split('T')[0],
+      paid_at: localYMD(new Date()),
       note: expMemo.trim() || null,
     });
     setSaving(false);

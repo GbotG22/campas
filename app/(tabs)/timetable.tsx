@@ -15,6 +15,7 @@ import { usePeriodSettings }                   from '@/hooks/usePeriodSettings';
 import { useSemesters }                        from '@/hooks/useSemesters';
 import { useTimetable }                        from '@/hooks/useTimetable';
 import { useAuthStore }                        from '@/stores/auth.store';
+import { localYMD }                            from '@/lib/dateUtils';
 import type { Database }                       from '@/types/database';
 
 type Slot = Database['public']['Tables']['timetable_slots']['Row'];
@@ -50,7 +51,7 @@ export default function TimetableScreen() {
 
   // ── 日付 ─────────────────────────────────────────────────────
   const today    = useMemo(() => new Date(), []);
-  const todayStr = useMemo(() => today.toISOString().split('T')[0], [today]);
+  const todayStr = useMemo(() => localYMD(today), [today]);
   const todayDow = useMemo(() => {
     const d = today.getDay();
     return d === 0 || d === 6 ? -1 : d - 1; // 月=0〜金=4

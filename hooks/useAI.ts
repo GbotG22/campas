@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { localYMD } from '@/lib/dateUtils';
 
 export interface AIScheduleItem {
   title:    string;
@@ -20,7 +21,7 @@ function fmtDate(d: string): string {
 function buildPrompt(items: AIScheduleItem[], today: string): string {
   const limit = new Date(today);
   limit.setDate(limit.getDate() + 14);
-  const limitStr = limit.toISOString().split('T')[0];
+  const limitStr = localYMD(limit);
 
   const upcoming = items
     .filter(i => !i.isDone && i.date >= today && i.date <= limitStr)
@@ -74,7 +75,7 @@ export function useAI() {
     setAdvice(null);
     setError(null);
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localYMD(new Date());
     console.log('[AI] 分析開始 items数:', items.length, 'today:', today);
 
     try {

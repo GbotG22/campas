@@ -20,6 +20,7 @@ import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { useWorkplaces, WORKPLACE_COLORS } from '@/hooks/useWorkplaces';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
 import { getNextPayday } from '@/lib/payPeriod';
+import { localYMD } from '@/lib/dateUtils';
 import type { Database, IncomeType } from '@/types/database';
 type Expense = Database['public']['Tables']['expenses']['Row'];
 
@@ -140,14 +141,14 @@ export default function MoneyScreen() {
   const [expTitle, setExpTitle]       = useState('');
   const [expAmount, setExpAmount]     = useState('');
   const [expCat, setExpCat]           = useState<Category>('食費');
-  const [expDate, setExpDate]         = useState(now.toISOString().split('T')[0]);
+  const [expDate, setExpDate]         = useState(localYMD(now));
   const [expMemo, setExpMemo]         = useState('');
   const [expSaving, setExpSaving]     = useState(false);
 
   function openAddExpModal() {
     setEditingExp(null);
     const defaultDate = isCurrentMonth
-      ? now.toISOString().split('T')[0]
+      ? localYMD(now)
       : `${selYear}-${String(selMonth).padStart(2, '0')}-01`;
     setExpTitle(''); setExpAmount(''); setExpCat('食費');
     setExpDate(defaultDate); setExpMemo('');
@@ -159,7 +160,7 @@ export default function MoneyScreen() {
     setExpTitle(exp.title);
     setExpAmount(String(exp.amount));
     setExpCat((exp.category as Category) ?? '食費');
-    setExpDate(exp.paid_at ?? now.toISOString().split('T')[0]);
+    setExpDate(exp.paid_at ?? localYMD(now));
     setExpMemo(exp.note ?? '');
     setAddExpModal(true);
   }
@@ -278,7 +279,7 @@ export default function MoneyScreen() {
   const [shiftModal, setShiftModal]       = useState(false);
   const [editingShift, setEditingShift]   = useState<ShiftWithWorkplace | null>(null);
   const [sfWpId, setSfWpId]               = useState('');
-  const [sfDate, setSfDate]               = useState(now.toISOString().split('T')[0]);
+  const [sfDate, setSfDate]               = useState(localYMD(now));
   const [sfStart, setSfStart]             = useState('09:00');
   const [sfEnd, setSfEnd]                 = useState('18:00');
   const [sfBreak, setSfBreak]             = useState('60');
@@ -288,7 +289,7 @@ export default function MoneyScreen() {
   function openShiftModal() {
     setEditingShift(null);
     setSfWpId(workplaces[0]?.id ?? '');
-    setSfDate(now.toISOString().split('T')[0]);
+    setSfDate(localYMD(now));
     setSfStart('09:00'); setSfEnd('18:00'); setSfBreak('60'); setSfNote('');
     setShiftModal(true);
   }
@@ -994,7 +995,7 @@ function SalaryTab({
   onAddSalary: () => void;
   onDeleteSalary: (id: string) => void;
 }) {
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => localYMD(new Date()), []);
 
   // バイト先ごとの「次の給料」カード（シフトがある期間のみ表示）
   const nextPayCards = useMemo(() => workplaces.map(wp => {
