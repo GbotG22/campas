@@ -150,7 +150,7 @@ export default function MoneyScreen() {
   const [expCat, setExpCat]           = useState<Category>('食費');
   const [expDate, setExpDate]         = useState(localYMD(now));
   const [expMemo, setExpMemo]             = useState('');
-  const [expPayMethod, setExpPayMethod]   = useState<'cash'|'debit'|'credit'>('cash');
+  const [expPayMethod, setExpPayMethod]   = useState<'cash'|'credit'|'other'>('cash');
   const [expCardId, setExpCardId]         = useState<string | null>(null);
   const [expSaving, setExpSaving]         = useState(false);
 
@@ -172,7 +172,8 @@ export default function MoneyScreen() {
     setExpCat((exp.category as Category) ?? '食費');
     setExpDate(exp.paid_at ?? localYMD(now));
     setExpMemo(exp.note ?? '');
-    setExpPayMethod((exp.payment_method as 'cash'|'debit'|'credit') ?? 'cash');
+    const pm = exp.payment_method as string;
+    setExpPayMethod(pm === 'cash' ? 'cash' : pm === 'credit' ? 'credit' : 'other');
     setExpCardId(exp.credit_card_id ?? null);
     setAddExpModal(true);
   }
@@ -534,7 +535,7 @@ export default function MoneyScreen() {
               <InlineDatePicker label="日付" value={expDate} onChange={setExpDate} />
               <Text style={styles.inputLabel}>支払方法</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: SPACING.sm }}>
-                {([['cash','現金'],['debit','デビット'],['credit','クレカ']] as const).map(([v, label]) => (
+                {([['cash','現金'],['credit','クレジット'],['other','その他']] as const).map(([v, label]) => (
                   <TouchableOpacity key={v} onPress={() => { setExpPayMethod(v); if (v !== 'credit') setExpCardId(null); }}
                     style={{ flex: 1, paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: expPayMethod === v ? COLORS.primary : COLORS.gray100, alignItems: 'center' }}>
                     <Text style={{ color: expPayMethod === v ? '#fff' : COLORS.gray600, fontWeight: '600', fontSize: 13 }}>{label}</Text>
