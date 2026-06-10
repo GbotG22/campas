@@ -12,6 +12,7 @@ import InlineDatePicker from '@/components/InlineDatePicker';
 import InlineTimePicker from '@/components/InlineTimePicker';
 import { COLORS, SPACING, RADIUS, SHADOW, SUBJECT_COLORS } from '@/constants/theme';
 import { resolveServiceIcon } from '@/constants/serviceIcons';
+import { useCreditCards, getClosingPeriod, getPaymentDate, CreditCard } from '@/hooks/useCreditCards';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useIncomes, INCOME_TYPE_CONFIG } from '@/hooks/useIncomes';
 import { useShifts, calcWage, formatMinutes, calcWorkMinutes } from '@/hooks/useShifts';
@@ -62,7 +63,7 @@ function formatDateJP(dateStr: string): string {
 }
 
 // ── 収支タブ型 ─────────────────────────────────────────────
-type MoneyTab = 'expenses' | 'subscriptions' | 'incomes' | 'salary';
+type MoneyTab = 'expenses' | 'subscriptions' | 'incomes' | 'salary' | 'cards';
 
 const BUDGET_KEY = 'campas_monthly_budget';
 
@@ -96,6 +97,7 @@ export default function MoneyScreen() {
 
   // ── データフック ───────────────────────────────────────────
   const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses(selYear, selMonth);
+  const { cards, loading: cardLoading, addCard, updateCard, deleteCard } = useCreditCards();
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subTotal } = useSubscriptions();
   const { incomes, salaryRecords: salaryRecordsRaw, isLoading: incLoading, addIncome, deleteIncome, addSalaryRecord, deleteSalaryRecord } = useIncomes();
   const { workplaces, isLoading: wpLoading, addWorkplace, updateWorkplace, deleteWorkplace } = useWorkplaces();
@@ -142,8 +144,10 @@ export default function MoneyScreen() {
   const [expAmount, setExpAmount]     = useState('');
   const [expCat, setExpCat]           = useState<Category>('食費');
   const [expDate, setExpDate]         = useState(localYMD(now));
-  const [expMemo, setExpMemo]         = useState('');
-  const [expSaving, setExpSaving]     = useState(false);
+  const [expMemo, setExpMemo]             = useState('');
+  const [expPayMethod, setExpPayMethod]   = useState<'cash'|'debit'|'credit'>('cash');
+  const [expCardId, setExpCardId]         = useState<string | null>(null);
+  const [expSaving, setExpSaving]         = useState(false);
 
   function openAddExpModal() {
     setEditingExp(null);
@@ -152,6 +156,7 @@ export default function MoneyScreen() {
       : `${selYear}-${String(selMonth).padStart(2, '0')}-01`;
     setExpTitle(''); setExpAmount(''); setExpCat('食費');
     setExpDate(defaultDate); setExpMemo('');
+    setExpPayMethod('cash'); setExpCardId(null);
     setAddExpModal(true);
   }
 
@@ -162,6 +167,8 @@ export default function MoneyScreen() {
     setExpCat((exp.category as Category) ?? '食費');
     setExpDate(exp.paid_at ?? localYMD(now));
     setExpMemo(exp.note ?? '');
+    setExpPayMethod((exp.payment_method as 'cash'|'debit'|'credit') ?? 'cash');
+    setExpCardId(exp.credit_card_id ?? null);
     setAddExpModal(true);
   }
 
@@ -171,7 +178,11 @@ export default function MoneyScreen() {
       Alert.alert('入力エラー', '内容と金額を入力してください'); return;
     }
     setExpSaving(true);
-    const payload = { title: expTitle.trim(), amount, category: expCat, paid_at: expDate, note: expMemo.trim() || null };
+    const payload = {
+      title: expTitle.trim(), amount, category: expCat, paid_at: expDate, note: expMemo.trim() || null,
+      payment_method: expPayMethod,
+      credit_card_id: expPayMethod === 'credit' ? expCardId : null,
+    };
     const err = editingExp
       ? await updateExpense(editingExp.id, payload)
       : await addExpense(payload);
@@ -357,6 +368,48 @@ export default function MoneyScreen() {
     if (err) Alert.alert('エラー', err.message); else setSalaryModal(false);
   }
 
+  // ── カード追加 / 編集モーダル ─────────────────────────────
+  const [cardModal, setCardModal]         = useState(false);
+  const [editingCard, setEditingCard]     = useState<CreditCard | null>(null);
+  const [cardName, setCardName]           = useState('');
+  const [cardColor, setCardColor]         = useState('#4F8EF7');
+  const [cardClosingDay, setCardClosingDay] = useState('25');
+  const [cardPayDay, setCardPayDay]       = useState('10');
+  const [cardPayOffset, setCardPayOffset] = useState<0|1>(1);
+  const [cardSaving, setCardSaving]       = useState(false);
+
+  const CARD_COLORS = ['#4F8EF7','#10B981','#F59E0B','#EC4899','#8B5CF6','#EF4444','#06B6D4','#64748B'];
+
+  function openAddCardModal() {
+    setEditingCard(null);
+    setCardName(''); setCardColor('#4F8EF7'); setCardClosingDay('25'); setCardPayDay('10'); setCardPayOffset(1);
+    setCardModal(true);
+  }
+  function openEditCard(card: CreditCard) {
+    setEditingCard(card);
+    setCardName(card.name); setCardColor(card.color);
+    setCardClosingDay(String(card.closing_day)); setCardPayDay(String(card.payment_day));
+    setCardPayOffset(card.payment_month_offset as 0|1);
+    setCardModal(true);
+  }
+  async function handleSaveCard() {
+    const closing = parseInt(cardClosingDay, 10);
+    const payment = parseInt(cardPayDay, 10);
+    if (!cardName.trim() || isNaN(closing) || isNaN(payment)) {
+      Alert.alert('入力エラー', 'カード名・締め日・支払日を入力してください'); return;
+    }
+    setCardSaving(true);
+    try {
+      if (editingCard) {
+        await updateCard(editingCard.id, { name: cardName.trim(), color: cardColor, closing_day: closing, payment_day: payment, payment_month_offset: cardPayOffset });
+      } else {
+        await addCard({ name: cardName.trim(), color: cardColor, closing_day: closing, payment_day: payment, payment_month_offset: cardPayOffset });
+      }
+      setCardModal(false);
+    } catch (e: any) { Alert.alert('エラー', e.message); }
+    setCardSaving(false);
+  }
+
   // ── 集計 ──────────────────────────────────────────────────
   const remaining  = budget !== null ? budget - expTotal : null;
   const usageRate  = budget ? Math.min(expTotal / budget, 1) : 0;
@@ -368,7 +421,7 @@ export default function MoneyScreen() {
   const monthlyIncomeTotal = useMemo(() => selMonthIncomes.reduce((s, i) => s + i.amount, 0), [selMonthIncomes]);
   const thisMonthShifts    = getForMonth(selYear, selMonth);
 
-  const isLoading = expLoading || subLoading || incLoading || wpLoading || shiftLoading;
+  const isLoading = expLoading || subLoading || incLoading || wpLoading || shiftLoading || cardLoading;
 
   // ── FAB押下 ──────────────────────────────────────────────
   function handleAdd() {
@@ -376,6 +429,7 @@ export default function MoneyScreen() {
     else if (tab === 'subscriptions') openSubModal();
     else if (tab === 'incomes')       openAddIncModal();
     else if (tab === 'salary')        openSalaryModal();
+    else if (tab === 'cards')         setCardModal(true);
   }
 
   return (
@@ -416,7 +470,7 @@ export default function MoneyScreen() {
       {/* ── サブタブ ── */}
       <View style={styles.tabBar}>
         {([
-          ['expenses', '支出'], ['subscriptions', 'サブスク'], ['incomes', '収入'], ['salary', '給料'],
+          ['expenses', '支出'], ['subscriptions', 'サブスク'], ['incomes', '収入'], ['salary', '給料'], ['cards', 'カード'],
         ] as [MoneyTab, string][]).map(([key, label]) => (
           <TouchableOpacity key={key} style={[styles.tabItem, tab === key && styles.tabItemActive]} onPress={() => setTab(key)}>
             <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
@@ -431,6 +485,7 @@ export default function MoneyScreen() {
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
+          {tab === 'cards'         && <CardsTab cards={cards} expenses={expenses} onEdit={openEditCard} onDelete={id => Alert.alert('削除', 'カードを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteCard(id) }])} />}
           {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
         </View>
       )}
@@ -469,6 +524,29 @@ export default function MoneyScreen() {
                 ))}
               </ScrollView>
               <InlineDatePicker label="日付" value={expDate} onChange={setExpDate} />
+              <Text style={styles.inputLabel}>支払方法</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: SPACING.sm }}>
+                {([['cash','現金'],['debit','デビット'],['credit','クレカ']] as const).map(([v, label]) => (
+                  <TouchableOpacity key={v} onPress={() => { setExpPayMethod(v); if (v !== 'credit') setExpCardId(null); }}
+                    style={{ flex: 1, paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: expPayMethod === v ? COLORS.primary : COLORS.gray100, alignItems: 'center' }}>
+                    <Text style={{ color: expPayMethod === v ? '#fff' : COLORS.gray600, fontWeight: '600', fontSize: 13 }}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {expPayMethod === 'credit' && cards.length > 0 && (
+                <>
+                  <Text style={styles.inputLabel}>カード選択</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4, marginBottom: SPACING.sm }}>
+                    {cards.map(c => (
+                      <TouchableOpacity key={c.id} onPress={() => setExpCardId(c.id)}
+                        style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.md, backgroundColor: expCardId === c.id ? c.color : COLORS.gray100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: expCardId === c.id ? '#fff' : c.color }} />
+                        <Text style={{ color: expCardId === c.id ? '#fff' : COLORS.gray700, fontWeight: '600', fontSize: 13 }}>{c.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
               <Text style={styles.inputLabel}>メモ（任意）</Text>
               <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="例: 友達とランチ" value={expMemo} onChangeText={setExpMemo} multiline />
               {editingExp && (
@@ -657,6 +735,48 @@ export default function MoneyScreen() {
               <TextInput style={styles.input} placeholder="例: 85000" value={salAmount} onChangeText={setSalAmount} keyboardType="number-pad" autoFocus />
               <Text style={styles.inputLabel}>メモ（任意）</Text>
               <TextInput style={[styles.input, { height: 72, textAlignVertical: 'top' }]} placeholder="例: 交通費込み" value={salNote} onChangeText={setSalNote} multiline />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── カード追加 / 編集モーダル ── */}
+      <Modal visible={cardModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <ModalHeader title={editingCard ? 'カードを編集' : 'カードを追加'} onCancel={() => setCardModal(false)} onSave={handleSaveCard} saveLabel={cardSaving ? '保存中...' : '保存'} disabled={cardSaving} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
+              <Text style={styles.inputLabel}>カード名 *</Text>
+              <TextInput style={styles.input} placeholder="例: 楽天カード" value={cardName} onChangeText={setCardName} autoFocus />
+              <Text style={styles.inputLabel}>カラー</Text>
+              <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+                {CARD_COLORS.map(c => (
+                  <TouchableOpacity key={c} onPress={() => setCardColor(c)}
+                    style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c, borderWidth: cardColor === c ? 3 : 0, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 }} />
+                ))}
+              </View>
+              <Text style={styles.inputLabel}>締め日 *</Text>
+              <TextInput style={styles.input} placeholder="例: 25（末日は31）" value={cardClosingDay} onChangeText={setCardClosingDay} keyboardType="number-pad" />
+              <Text style={styles.inputLabel}>支払日 *</Text>
+              <TextInput style={styles.input} placeholder="例: 10（末日は31）" value={cardPayDay} onChangeText={setCardPayDay} keyboardType="number-pad" />
+              <Text style={styles.inputLabel}>支払月</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {([0, 1] as const).map(v => (
+                  <TouchableOpacity key={v} onPress={() => setCardPayOffset(v)}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: RADIUS.md, backgroundColor: cardPayOffset === v ? COLORS.primary : COLORS.gray100, alignItems: 'center' }}>
+                    <Text style={{ color: cardPayOffset === v ? '#fff' : COLORS.gray700, fontWeight: '600' }}>{v === 0 ? '当月払い' : '翌月払い'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {editingCard && (
+                <TouchableOpacity style={{ marginTop: SPACING.md, alignItems: 'center' }}
+                  onPress={() => Alert.alert('削除', `${editingCard.name}を削除しますか？`, [
+                    { text: 'キャンセル', style: 'cancel' },
+                    { text: '削除', style: 'destructive', onPress: async () => { await deleteCard(editingCard.id); setCardModal(false); } },
+                  ])}>
+                  <Text style={{ color: '#EF4444', fontWeight: '600' }}>このカードを削除</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -1182,6 +1302,77 @@ function Empty({ icon, text }: { icon: string; text: string }) {
       <Ionicons name={icon as any} size={36} color="#D1D5DB" />
       <Text style={styles.emptyText}>{text}</Text>
     </View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// カードタブ
+// ─────────────────────────────────────────────────────────────
+function CardsTab({ cards, expenses, onEdit, onDelete }: {
+  cards: CreditCard[];
+  expenses: Database['public']['Tables']['expenses']['Row'][];
+  onEdit: (card: CreditCard) => void;
+  onDelete: (id: string) => void;
+}) {
+  const today = new Date();
+
+  if (cards.length === 0) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <Ionicons name="card-outline" size={48} color={COLORS.gray300} />
+        <Text style={{ color: COLORS.gray400, fontSize: 15 }}>カードがありません</Text>
+        <Text style={{ color: COLORS.gray300, fontSize: 13 }}>右上の「＋ 追加」で登録してください</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.md }}>
+      {cards.map(card => {
+        const { periodStart, periodEnd } = getClosingPeriod(card, today);
+        const payDate = getPaymentDate(card, today);
+        const startYMD = localYMD(periodStart);
+        const endYMD   = localYMD(periodEnd);
+        const cardExpenses = expenses.filter(e => e.credit_card_id === card.id && e.paid_at >= startYMD && e.paid_at <= endYMD);
+        const periodTotal  = cardExpenses.reduce((s, e) => s + e.amount, 0);
+        const closingLabel = card.closing_day === 31 ? '末日' : `${card.closing_day}日`;
+        const payLabel     = card.payment_day  === 31 ? '末日' : `${card.payment_day}日`;
+        const payMonth = payDate.getMonth() + 1;
+        const payDayNum = payDate.getDate();
+
+        return (
+          <TouchableOpacity key={card.id} onPress={() => onEdit(card)}
+            style={{ backgroundColor: '#fff', borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOW.sm }}>
+            {/* カードヘッダー */}
+            <View style={{ backgroundColor: card.color, padding: SPACING.md }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{card.name}</Text>
+                <Ionicons name="card" size={24} color="rgba(255,255,255,0.7)" />
+              </View>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 6 }}>
+                {closingLabel}締め → {card.payment_month_offset === 0 ? '当月' : '翌月'}{payLabel}払い
+              </Text>
+            </View>
+            {/* 今期情報 */}
+            <View style={{ padding: SPACING.md, gap: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View>
+                  <Text style={{ fontSize: 11, color: COLORS.gray400 }}>今期の利用合計</Text>
+                  <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.gray900 }}>¥{periodTotal.toLocaleString()}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: COLORS.gray400 }}>引き落とし予定</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: card.color }}>{payMonth}月{payDayNum}日</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>
+                集計期間: {startYMD} ～ {endYMD}（{cardExpenses.length}件）
+              </Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
   );
 }
 

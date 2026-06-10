@@ -579,39 +579,85 @@ export type Database = {
       // ──────────────────────────────────────────
       // 支出
       // ──────────────────────────────────────────
-      expenses: {
+      credit_cards: {
         Row: {
-          id:         string;
-          user_id:    string;
-          title:      string;
-          amount:     number;
-          category:   string | null;
-          paid_at:    string;
-          note:       string | null;
-          created_at: string;
-          updated_at: string;
+          id:                   string;
+          user_id:              string;
+          name:                 string;
+          color:                string;
+          closing_day:          number;
+          payment_day:          number;
+          payment_month_offset: number;
+          is_active:            boolean;
+          created_at:           string;
+          updated_at:           string;
         };
         Insert: {
-          id?:        string;
-          user_id:    string;
-          title:      string;
-          amount:     number;
-          category?:  string | null;
-          paid_at:    string;
-          note?:      string | null;
-          created_at?: string;
-          updated_at?: string;
+          id?:                   string;
+          user_id:               string;
+          name:                  string;
+          color?:                string;
+          closing_day:           number;
+          payment_day:           number;
+          payment_month_offset?: number;
+          is_active?:            boolean;
+          created_at?:           string;
+          updated_at?:           string;
         };
         Update: {
-          id?:        string;
-          user_id?:   string;
-          title?:     string;
-          amount?:    number;
-          category?:  string | null;
-          paid_at?:   string;
-          note?:      string | null;
-          created_at?: string;
-          updated_at?: string;
+          id?:                   string;
+          user_id?:              string;
+          name?:                 string;
+          color?:                string;
+          closing_day?:          number;
+          payment_day?:          number;
+          payment_month_offset?: number;
+          is_active?:            boolean;
+          created_at?:           string;
+          updated_at?:           string;
+        };
+        Relationships: [];
+      };
+
+      expenses: {
+        Row: {
+          id:             string;
+          user_id:        string;
+          title:          string;
+          amount:         number;
+          category:       string | null;
+          paid_at:        string;
+          note:           string | null;
+          payment_method: 'cash' | 'debit' | 'credit';
+          credit_card_id: string | null;
+          created_at:     string;
+          updated_at:     string;
+        };
+        Insert: {
+          id?:             string;
+          user_id:         string;
+          title:           string;
+          amount:          number;
+          category?:       string | null;
+          paid_at:         string;
+          note?:           string | null;
+          payment_method?: 'cash' | 'debit' | 'credit';
+          credit_card_id?: string | null;
+          created_at?:     string;
+          updated_at?:     string;
+        };
+        Update: {
+          id?:             string;
+          user_id?:        string;
+          title?:          string;
+          amount?:         number;
+          category?:       string | null;
+          paid_at?:        string;
+          note?:           string | null;
+          payment_method?: 'cash' | 'debit' | 'credit';
+          credit_card_id?: string | null;
+          created_at?:     string;
+          updated_at?:     string;
         };
         Relationships: [];
       };
