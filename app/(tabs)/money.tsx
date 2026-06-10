@@ -582,8 +582,12 @@ export default function MoneyScreen() {
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && (
             <View style={{ flex: 1 }}>
+              {/* サブスク / 固定費 内訳グラフ */}
+              {(subTotal > 0 || feMonthlyTotal > 0) && (
+                <RecurringBreakdownCard subTotal={subTotal} feTotal={feMonthlyTotal} />
+              )}
               {/* セグメント: サブスク / 固定費 */}
-              <View style={{ flexDirection: 'row', margin: SPACING.md, backgroundColor: COLORS.gray100, borderRadius: RADIUS.full, padding: 3 }}>
+              <View style={{ flexDirection: 'row', marginHorizontal: SPACING.md, marginBottom: SPACING.xs, backgroundColor: COLORS.gray100, borderRadius: RADIUS.full, padding: 3 }}>
                 {(['subscriptions', 'fixed_expenses'] as const).map((seg, i) => (
                   <TouchableOpacity key={seg} onPress={() => setRecurringSegment(seg)}
                     style={{ flex: 1, paddingVertical: 7, borderRadius: RADIUS.full, alignItems: 'center', backgroundColor: recurringSegment === seg ? COLORS.white : 'transparent' }}>
@@ -1071,6 +1075,35 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
         </TouchableOpacity>
       ))}
     </ScrollView>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 定期タブ 内訳グラフ（サブスク / 固定費）
+// ─────────────────────────────────────────────────────────────
+function RecurringBreakdownCard({ subTotal, feTotal }: { subTotal: number; feTotal: number }) {
+  const total = subTotal + feTotal;
+  if (total === 0) return null;
+  const items = [
+    { label: 'サブスク', amount: subTotal, color: COLORS.primary },
+    { label: '固定費',   amount: feTotal,  color: '#10B981' },
+  ].filter(item => item.amount > 0);
+  const maxAmount = Math.max(...items.map(i => i.amount));
+
+  return (
+    <View style={[styles.card, { marginBottom: 0 }]}>
+      <Text style={styles.cardTitle}>定期支払い内訳</Text>
+      {items.map(({ label, amount, color }) => (
+        <View key={label} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+          <Text style={{ fontSize: 12, color: COLORS.gray600, width: 56 }}>{label}</Text>
+          <View style={{ flex: 1, height: 10, backgroundColor: COLORS.gray100, borderRadius: 5, overflow: 'hidden' }}>
+            <View style={{ height: '100%', borderRadius: 5, width: `${(amount / maxAmount) * 100}%`, backgroundColor: color }} />
+          </View>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: COLORS.gray900, width: 80, textAlign: 'right' }}>¥{amount.toLocaleString()}</Text>
+        </View>
+      ))}
+      <Text style={{ fontSize: 11, color: COLORS.gray400, marginTop: 2 }}>月額合計 ¥{total.toLocaleString()}</Text>
+    </View>
   );
 }
 
@@ -1719,18 +1752,26 @@ const styles = StyleSheet.create({
 
   tabBar: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.gray100,
     paddingHorizontal: SPACING.sm + 4,
-    paddingVertical: SPACING.xs + 2,
+    paddingVertical: SPACING.sm,
     gap: SPACING.sm,
   },
-  tabItem:       { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs + 3, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
+  tabItem: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tabItemActive: { backgroundColor: COLORS.primary },
-  tabText:       { fontSize: 14, fontWeight: '600', color: COLORS.gray600 },
+  tabText:       { fontSize: 14, fontWeight: '600', color: COLORS.gray600, lineHeight: 18 },
   tabTextActive: { color: '#fff' },
-  tabAddBtn:     { paddingHorizontal: 6, paddingVertical: SPACING.xs + 3, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  tabAddBtn:     { paddingHorizontal: 6, paddingVertical: 6, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
 
   // サマリーカード（全タブ共通・白地）
   summaryCard: {
