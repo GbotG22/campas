@@ -10,6 +10,7 @@ type Assignment   = Database['public']['Tables']['assignments']['Row'];
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
 type AppEvent     = Database['public']['Tables']['events']['Row'];
 type ShiftRow     = Database['public']['Tables']['shifts']['Row'];
+type Workplace    = Database['public']['Tables']['workplaces']['Row'];
 
 // ── イベント通知の対象タイプ ──────────────────────────────────────
 const NOTIFIABLE_EVENT_TYPES = ['assignment', 'test', 'report'] as const;
@@ -402,6 +403,86 @@ export async function rescheduleAllShiftNotifications(
     // 未来のシフトを再スケジュール
     for (const shift of shifts) {
       await scheduleShiftNotification(shift);
+    }
+  } catch { /* ignore */ }
+}
+
+// ═══════════════════════════════════════════════════════════
+// 給料日通知
+// ═══════════════════════════════════════════════════════════
+
+/** workplace の payday_day / payday_month_offset から次の給料日を返す */
+function getNextPayday(paydayDay: number, monthOffset: number): Date {
+  const now = new Date();
+  const y   = now.getFullYear();
+  const m   = now.getMonth();
+
+  // 締め日翌月払い(monthOffset=1)などを考慮して対象月を算出
+  const targetM    = m + monthOffset;
+  const targetY    = y + Math.floor(targetM / 12);
+  const targetMIdx = ((targetM % 12) + 12) % 12;
+
+  // 月末クランプ
+  const daysInMonth = new Date(targetY, targetMIdx + 1, 0).getDate();
+  const effectiveDay = Math.min(paydayDay, daysInMonth);
+  const candidate = new Date(targetY, targetMIdx, effectiveDay, 9, 0, 0, 0);
+
+  if (candidate > now) return candidate;
+
+  // 来月を試す
+  const nextM    = targetMIdx + 1;
+  const nextY    = targetY + Math.floor(nextM / 12);
+  const nextMIdx = nextM % 12;
+  const daysInNext = new Date(nextY, nextMIdx + 1, 0).getDate();
+  const effectiveDayNext = Math.min(paydayDay, daysInNext);
+  return new Date(nextY, nextMIdx, effectiveDayNext, 9, 0, 0, 0);
+}
+
+/** workplace の給料日通知をスケジュール */
+export async function schedulePaydayNotification(workplace: Workplace): Promise<void> {
+  try {
+    const settings = await getNotificationSettings();
+    if (!settings.payday) return;
+    const N = getNotifications();
+    if (!N) return;
+
+    const triggerDate = getNextPayday(workplace.payday_day, workplace.payday_month_offset);
+    if (triggerDate <= new Date()) return;
+
+    await N.scheduleNotificationAsync({
+      identifier: `payday_${workplace.id}`,
+      content: {
+        title: '💰 本日は給料日です',
+        body:  `${workplace.name} の給料日です`,
+        sound: true,
+      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+    });
+  } catch { /* ignore */ }
+}
+
+/** workplace の給料日通知をキャンセル */
+export async function cancelPaydayNotification(id: string): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    await N.cancelScheduledNotificationAsync(`payday_${id}`);
+  } catch { /* ignore */ }
+}
+
+/** アクティブな全 workplace の給料日通知を一括再スケジュール */
+export async function rescheduleAllPaydayNotifications(workplaces: Workplace[]): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(n => n.identifier.startsWith('payday_'))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
+    for (const wp of workplaces) {
+      if (wp.is_active) await schedulePaydayNotification(wp);
     }
   } catch { /* ignore */ }
 }

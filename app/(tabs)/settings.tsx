@@ -44,7 +44,7 @@ export default function SettingsScreen() {
 
   // ── 通知設定状態 ─────────────────────────────────────────
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
-    shifts: true, subscriptions: true, events: true,
+    shifts: true, subscriptions: true, events: true, payday: true,
   });
 
   useEffect(() => {
@@ -251,6 +251,13 @@ export default function SettingsScreen() {
             sublabel="締切の3日前・前日・当日"
             value={notifSettings.events}
             onToggle={() => toggleNotif('events')}
+          />
+          <SwitchRow
+            icon="cash-outline"
+            label="給料日通知"
+            sublabel="給料日当日の朝9時"
+            value={notifSettings.payday}
+            onToggle={() => toggleNotif('payday')}
             isLast
           />
         </View>

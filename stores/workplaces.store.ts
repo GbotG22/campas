@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
+import { rescheduleAllPaydayNotifications } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Database } from '@/types/database';
@@ -50,6 +51,7 @@ export const useWorkplacesStore = create<WorkplacesState>((set, get) => ({
       } else if (data) {
         set({ workplaces: data });
         AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(data)).catch(() => {});
+        rescheduleAllPaydayNotifications(data).catch(() => {});
       }
     } catch (e) {
       console.error('[WorkplacesStore] fetch exception:', e);
