@@ -4,7 +4,7 @@
  * Expo Go で native module が利用できない場合でもクラッシュしないようにする
  */
 import type { Database } from '@/types/database';
-import { getNotificationSettings } from '@/lib/notificationSettings';
+import { getDetailedNotificationSettings } from '@/lib/notificationSettings';
 
 type Assignment   = Database['public']['Tables']['assignments']['Row'];
 type Subscription = Database['public']['Tables']['subscriptions']['Row'];
@@ -84,8 +84,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 export async function scheduleAssignmentNotifications(a: Assignment) {
   if (!a.due_date) return;
-  const settings = await getNotificationSettings();
-  if (!settings.events) return;
+  const settings = await getDetailedNotificationSettings();
   const N = getNotifications();
   if (!N) return;
 
@@ -94,12 +93,13 @@ export async function scheduleAssignmentNotifications(a: Assignment) {
   const now = new Date();
 
   const triggers = [
-    { id: `${a.id}_3d`, title: '📚 課題の締切3日前', body: `「${a.title}」の締切まであと3日です`, offset: -3 },
-    { id: `${a.id}_1d`, title: '⚠️ 課題の締切は明日', body: `「${a.title}」の締切は明日です！`,  offset: -1 },
-    { id: `${a.id}_0d`, title: '🔥 課題の締切は今日', body: `「${a.title}」の締切は今日です！`,  offset:  0 },
+    { id: `${a.id}_3d`, title: '📚 課題の締切3日前', body: `「${a.title}」の締切まであと3日です`, offset: -3, enabled: settings.events3d },
+    { id: `${a.id}_1d`, title: '⚠️ 課題の締切は明日', body: `「${a.title}」の締切は明日です！`,  offset: -1, enabled: settings.events1d },
+    { id: `${a.id}_0d`, title: '🔥 課題の締切は今日', body: `「${a.title}」の締切は今日です！`,  offset:  0, enabled: settings.events0d },
   ];
 
   for (const t of triggers) {
+    if (!t.enabled) continue;
     const date = new Date(due);
     date.setDate(date.getDate() + t.offset);
     if (date <= now) continue;
@@ -140,32 +140,20 @@ export async function rescheduleAllNotifications(assignments: Assignment[]) {
 // サブスク通知
 // ═══════════════════════════════════════════════════════════
 
-/**
- * 指定した年・月の最終日を返す
- * 例: lastDayOf(2024, 1) → 29（うるう年の2月）
- */
 function lastDayOf(year: number, month: number): number {
-  // new Date(year, month+1, 0) で翌月0日 = 当月末日
   return new Date(year, month + 1, 0).getDate();
 }
 
-/**
- * renewal_day から次回更新日を返す
- * 29〜31日が存在しない月（2月など）は月末にクランプする
- * 例: renewalDay=31, 2月 → 2/28 or 2/29
- */
 export function getNextRenewalDate(renewalDay: number): Date {
   const now = new Date();
   const y   = now.getFullYear();
   const m   = now.getMonth();
 
-  // 今月の有効な更新日（月末クランプ）
   const effectiveThisMonth = Math.min(renewalDay, lastDayOf(y, m));
   const thisMonth = new Date(y, m, effectiveThisMonth);
 
   if (thisMonth > now) return thisMonth;
 
-  // 来月の有効な更新日（月末クランプ）
   const nextM    = m + 1;
   const nextY    = nextM > 11 ? y + 1 : y;
   const nextMIdx = nextM > 11 ? 0 : nextM;
@@ -173,36 +161,45 @@ export function getNextRenewalDate(renewalDay: number): Date {
   return new Date(nextY, nextMIdx, effectiveNextMonth);
 }
 
-/** 次回更新まで何日か */
 export function daysUntilRenewal(renewalDay: number): number {
   const next = getNextRenewalDate(renewalDay);
   return Math.ceil((next.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
-/** サブスク更新3日前の通知をスケジュール */
 export async function scheduleSubscriptionNotification(sub: Subscription) {
   try {
-    const settings = await getNotificationSettings();
-    if (!settings.subscriptions) return;
+    const settings = await getDetailedNotificationSettings();
     const N = getNotifications();
     if (!N) return;
     const next = getNextRenewalDate(sub.renewal_day);
-    const triggerDate = new Date(next);
-    triggerDate.setDate(triggerDate.getDate() - 3);
-    triggerDate.setHours(9, 0, 0, 0);
-    if (triggerDate <= new Date()) return;
+    const now  = new Date();
 
-    await N.scheduleNotificationAsync({
-      identifier: `sub_${sub.id}_renewal`,
-      content: {
-        title: '🔔 サブスク更新のお知らせ',
-        body: `${sub.service_name}が3日後に¥${sub.amount.toLocaleString()}更新されます`,
-        sound: true,
-        categoryIdentifier: SUBSCRIPTION_CATEGORY,
-        data: { subscriptionId: sub.id, type: 'renewal' },
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
-    });
+    const triggers = [
+      { id: `sub_${sub.id}_7d`, days: 7, enabled: settings.sub7d,  label: '7日後' },
+      { id: `sub_${sub.id}_3d`, days: 3, enabled: settings.sub3d,  label: '3日後' },
+      { id: `sub_${sub.id}_1d`, days: 1, enabled: settings.sub1d,  label: '明日' },
+    ];
+
+    for (const t of triggers) {
+      if (!t.enabled) continue;
+      const triggerDate = new Date(next);
+      triggerDate.setDate(triggerDate.getDate() - t.days);
+      triggerDate.setHours(9, 0, 0, 0);
+      if (triggerDate <= now) continue;
+      try {
+        await N.scheduleNotificationAsync({
+          identifier: t.id,
+          content: {
+            title: '🔔 サブスク更新のお知らせ',
+            body:  `${sub.service_name}が${t.label}に¥${sub.amount.toLocaleString()}更新されます`,
+            sound: true,
+            categoryIdentifier: SUBSCRIPTION_CATEGORY,
+            data: { subscriptionId: sub.id, type: 'renewal' },
+          },
+          trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+        });
+      } catch { /* ignore */ }
+    }
   } catch { /* ignore */ }
 }
 
@@ -210,11 +207,14 @@ export async function cancelSubscriptionNotifications(id: string) {
   try {
     const N = getNotifications();
     if (!N) return;
-    await N.cancelScheduledNotificationAsync(`sub_${id}_renewal`);
+    await Promise.all([
+      N.cancelScheduledNotificationAsync(`sub_${id}_7d`),
+      N.cancelScheduledNotificationAsync(`sub_${id}_3d`),
+      N.cancelScheduledNotificationAsync(`sub_${id}_1d`),
+    ]);
   } catch { /* ignore */ }
 }
 
-/** アクティブなサブスク通知を一括再スケジュール */
 export async function rescheduleSubscriptionNotifications(
   subscriptions: Subscription[],
 ) {
@@ -227,7 +227,6 @@ export async function rescheduleSubscriptionNotifications(
         .filter(n => n.identifier.startsWith('sub_'))
         .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
     );
-
     for (const sub of subscriptions) {
       if (!sub.is_active) continue;
       await scheduleSubscriptionNotification(sub);
@@ -239,51 +238,46 @@ export async function rescheduleSubscriptionNotifications(
 // イベント通知（課題・テスト・レポート）
 // ═══════════════════════════════════════════════════════════
 
-/**
- * 課題・テスト・レポートの締切通知を登録する。
- * - 3日前 09:00
- * - 前日  09:00
- * - 当日  09:00
- * 対象でないイベントタイプは何もしない。
- */
 export async function scheduleEventNotifications(event: AppEvent): Promise<void> {
   if (!isNotifiableEventType(event.event_type)) return;
   if (!event.start_date) return;
-  const settings = await getNotificationSettings();
-  if (!settings.events) return;
+  const settings = await getDetailedNotificationSettings();
   const N = getNotifications();
   if (!N) return;
 
   const label = EVENT_TYPE_LABEL[event.event_type as NotifiableEventType];
-  // start_date を当日 09:00 の Date に変換（ローカルタイム）
   const due = new Date(`${event.start_date}T09:00:00`);
   const now = new Date();
 
   const triggers = [
     {
-      id:    `ev_${event.id}_3d`,
-      title: `📚 ${label}の締切3日前`,
-      body:  `「${event.title}」の締切まであと3日です`,
-      offset: -3,
+      id:      `ev_${event.id}_3d`,
+      title:   `📚 ${label}の締切3日前`,
+      body:    `「${event.title}」の締切まであと3日です`,
+      offset:  -3,
+      enabled: settings.events3d,
     },
     {
-      id:    `ev_${event.id}_1d`,
-      title: `⚠️ ${label}の締切は明日`,
-      body:  `「${event.title}」の締切は明日です！`,
-      offset: -1,
+      id:      `ev_${event.id}_1d`,
+      title:   `⚠️ ${label}の締切は明日`,
+      body:    `「${event.title}」の締切は明日です！`,
+      offset:  -1,
+      enabled: settings.events1d,
     },
     {
-      id:    `ev_${event.id}_0d`,
-      title: `🔥 ${label}の締切は今日`,
-      body:  `「${event.title}」の締切は今日です！`,
-      offset:  0,
+      id:      `ev_${event.id}_0d`,
+      title:   `🔥 ${label}の締切は今日`,
+      body:    `「${event.title}」の締切は今日です！`,
+      offset:   0,
+      enabled: settings.events0d,
     },
   ];
 
   for (const t of triggers) {
+    if (!t.enabled) continue;
     const date = new Date(due);
     date.setDate(date.getDate() + t.offset);
-    if (date <= now) continue; // 過去の日時はスキップ
+    if (date <= now) continue;
     try {
       await N.scheduleNotificationAsync({
         identifier: t.id,
@@ -294,7 +288,6 @@ export async function scheduleEventNotifications(event: AppEvent): Promise<void>
   }
 }
 
-/** イベントに紐づく通知を全てキャンセルする */
 export async function cancelEventNotifications(id: string): Promise<void> {
   try {
     const N = getNotifications();
@@ -307,23 +300,16 @@ export async function cancelEventNotifications(id: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
-/**
- * 全イベントの通知を一括再スケジュールする。
- * fetch() 後に呼ぶことで、古い通知（削除済み・日付変更済み）を
- * クリーンアップしつつ最新状態に同期する。
- */
 export async function rescheduleAllEventNotifications(events: AppEvent[]): Promise<void> {
   try {
     const N = getNotifications();
     if (!N) return;
-    // ev_ プレフィックスの通知を全てキャンセル
     const scheduled = await N.getAllScheduledNotificationsAsync();
     await Promise.all(
       scheduled
         .filter(n => n.identifier.startsWith('ev_'))
         .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
     );
-    // 未完了・対象タイプのイベントだけ再スケジュール
     for (const ev of events) {
       if (!ev.is_done && isNotifiableEventType(ev.event_type)) {
         await scheduleEventNotifications(ev);
@@ -336,37 +322,36 @@ export async function rescheduleAllEventNotifications(events: AppEvent[]): Promi
 // シフト通知（バイト開始前リマインダー）
 // ═══════════════════════════════════════════════════════════
 
-/** シフト通知に必要な最小限の情報 */
 interface ShiftNotificationParams {
-  id:             string;
-  date:           string;        // YYYY-MM-DD
-  start_time:     string;        // HH:MM
+  id:              string;
+  date:            string;        // YYYY-MM-DD
+  start_time:      string;        // HH:MM
   workplace_name?: string | null;
 }
 
-/**
- * バイト開始30分前の通知を登録する。
- * 既に30分前を過ぎているシフトは何もしない。
- */
 export async function scheduleShiftNotification(
   shift: ShiftNotificationParams,
 ): Promise<void> {
   try {
-    const settings = await getNotificationSettings();
-    if (!settings.shifts) return;
+    const settings = await getDetailedNotificationSettings();
+    if (settings.shiftMinutes === 0) return;
     const N = getNotifications();
     if (!N) return;
 
     const shiftStart  = new Date(`${shift.date}T${shift.start_time}:00`);
-    const triggerDate = new Date(shiftStart.getTime() - 30 * 60 * 1000);
+    const triggerDate = new Date(shiftStart.getTime() - settings.shiftMinutes * 60 * 1000);
     if (triggerDate <= new Date()) return;
 
-    const name = shift.workplace_name ?? 'バイト';
+    const name  = shift.workplace_name ?? 'バイト';
+    const label = settings.shiftMinutes >= 60
+      ? `${settings.shiftMinutes / 60}時間`
+      : `${settings.shiftMinutes}分`;
+
     await N.scheduleNotificationAsync({
       identifier: `shift_${shift.id}_pre`,
       content: {
-        title: '💼 バイト開始30分前',
-        body:  `${name}のバイトが30分後に始まります（${shift.start_time}〜）`,
+        title: `💼 バイト開始${label}前`,
+        body:  `${name}のバイトが${label}後に始まります（${shift.start_time}〜）`,
         sound: true,
       },
       trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
@@ -374,7 +359,6 @@ export async function scheduleShiftNotification(
   } catch { /* ignore */ }
 }
 
-/** シフトに紐づく通知をキャンセルする */
 export async function cancelShiftNotification(id: string): Promise<void> {
   try {
     const N = getNotifications();
@@ -383,24 +367,18 @@ export async function cancelShiftNotification(id: string): Promise<void> {
   } catch { /* ignore */ }
 }
 
-/**
- * 全シフトの通知を一括再スケジュールする。
- * fetch() 後に呼ぶことで、削除済みシフトの通知もクリーンアップされる。
- */
 export async function rescheduleAllShiftNotifications(
   shifts: ShiftNotificationParams[],
 ): Promise<void> {
   try {
     const N = getNotifications();
     if (!N) return;
-    // shift_ プレフィックスの通知を全てキャンセル
     const scheduled = await N.getAllScheduledNotificationsAsync();
     await Promise.all(
       scheduled
         .filter(n => n.identifier.startsWith('shift_'))
         .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
     );
-    // 未来のシフトを再スケジュール
     for (const shift of shifts) {
       await scheduleShiftNotification(shift);
     }
@@ -411,66 +389,73 @@ export async function rescheduleAllShiftNotifications(
 // 給料日通知
 // ═══════════════════════════════════════════════════════════
 
-/** workplace の payday_day / payday_month_offset から次の給料日を返す */
 function getNextPayday(paydayDay: number, monthOffset: number): Date {
   const now = new Date();
   const y   = now.getFullYear();
   const m   = now.getMonth();
 
-  // 締め日翌月払い(monthOffset=1)などを考慮して対象月を算出
   const targetM    = m + monthOffset;
   const targetY    = y + Math.floor(targetM / 12);
   const targetMIdx = ((targetM % 12) + 12) % 12;
 
-  // 月末クランプ
-  const daysInMonth = new Date(targetY, targetMIdx + 1, 0).getDate();
+  const daysInMonth  = new Date(targetY, targetMIdx + 1, 0).getDate();
   const effectiveDay = Math.min(paydayDay, daysInMonth);
-  const candidate = new Date(targetY, targetMIdx, effectiveDay, 9, 0, 0, 0);
+  const candidate    = new Date(targetY, targetMIdx, effectiveDay, 9, 0, 0, 0);
 
   if (candidate > now) return candidate;
 
-  // 来月を試す
   const nextM    = targetMIdx + 1;
   const nextY    = targetY + Math.floor(nextM / 12);
   const nextMIdx = nextM % 12;
-  const daysInNext = new Date(nextY, nextMIdx + 1, 0).getDate();
+  const daysInNext       = new Date(nextY, nextMIdx + 1, 0).getDate();
   const effectiveDayNext = Math.min(paydayDay, daysInNext);
   return new Date(nextY, nextMIdx, effectiveDayNext, 9, 0, 0, 0);
 }
 
-/** workplace の給料日通知をスケジュール */
 export async function schedulePaydayNotification(workplace: Workplace): Promise<void> {
   try {
-    const settings = await getNotificationSettings();
-    if (!settings.payday) return;
+    const settings = await getDetailedNotificationSettings();
     const N = getNotifications();
     if (!N) return;
 
-    const triggerDate = getNextPayday(workplace.payday_day, workplace.payday_month_offset);
-    if (triggerDate <= new Date()) return;
+    const payday = getNextPayday(workplace.payday_day, workplace.payday_month_offset);
+    const now    = new Date();
 
-    await N.scheduleNotificationAsync({
-      identifier: `payday_${workplace.id}`,
-      content: {
-        title: '💰 本日は給料日です',
-        body:  `${workplace.name} の給料日です`,
-        sound: true,
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
-    });
+    const triggers = [
+      { id: `payday_${workplace.id}_3d`, days: 3, enabled: settings.payday3d, title: '💰 給料日まであと3日', body: `${workplace.name}の給料日まであと3日です` },
+      { id: `payday_${workplace.id}_1d`, days: 1, enabled: settings.payday1d, title: '💰 給料日は明日',     body: `${workplace.name}の給料日は明日です` },
+      { id: `payday_${workplace.id}_0d`, days: 0, enabled: settings.payday0d, title: '💰 本日は給料日です', body: `${workplace.name}の給料日です` },
+    ];
+
+    for (const t of triggers) {
+      if (!t.enabled) continue;
+      const triggerDate = new Date(payday);
+      triggerDate.setDate(triggerDate.getDate() - t.days);
+      triggerDate.setHours(9, 0, 0, 0);
+      if (triggerDate <= now) continue;
+      try {
+        await N.scheduleNotificationAsync({
+          identifier: t.id,
+          content: { title: t.title, body: t.body, sound: true },
+          trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+        });
+      } catch { /* ignore */ }
+    }
   } catch { /* ignore */ }
 }
 
-/** workplace の給料日通知をキャンセル */
 export async function cancelPaydayNotification(id: string): Promise<void> {
   try {
     const N = getNotifications();
     if (!N) return;
-    await N.cancelScheduledNotificationAsync(`payday_${id}`);
+    await Promise.all([
+      N.cancelScheduledNotificationAsync(`payday_${id}_3d`),
+      N.cancelScheduledNotificationAsync(`payday_${id}_1d`),
+      N.cancelScheduledNotificationAsync(`payday_${id}_0d`),
+    ]);
   } catch { /* ignore */ }
 }
 
-/** アクティブな全 workplace の給料日通知を一括再スケジュール */
 export async function rescheduleAllPaydayNotifications(workplaces: Workplace[]): Promise<void> {
   try {
     const N = getNotifications();
