@@ -22,6 +22,10 @@ import { useWorkplaces, WORKPLACE_COLORS } from '@/hooks/useWorkplaces';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
 import { getNextPayday } from '@/lib/payPeriod';
 import { localYMD } from '@/lib/dateUtils';
+import {
+  ALL_MONEY_TABS, loadMoneyTabSettings, saveMoneyTabSettings,
+  type MoneyTabKey,
+} from '@/lib/moneyTabSettings';
 import type { Database, IncomeType } from '@/types/database';
 type Expense = Database['public']['Tables']['expenses']['Row'];
 
@@ -63,7 +67,7 @@ function formatDateJP(dateStr: string): string {
 }
 
 // ── 収支タブ型 ─────────────────────────────────────────────
-type MoneyTab = 'expenses' | 'subscriptions' | 'incomes' | 'salary' | 'cards';
+type MoneyTab = MoneyTabKey;
 
 const BUDGET_KEY = 'campas_monthly_budget';
 
@@ -111,6 +115,27 @@ export default function MoneyScreen() {
   const salaryRecords = salaryRecordsRaw as unknown as SalaryRecord[];
 
   const [tab, setTab] = useState<MoneyTab>('expenses');
+
+  // ── タブ表示設定 ───────────────────────────────────────────
+  const [tabSettings, setTabSettings] = useState<Record<MoneyTabKey, boolean> | null>(null);
+  const [tabCustomModal, setTabCustomModal] = useState(false);
+
+  useEffect(() => {
+    loadMoneyTabSettings().then(setTabSettings);
+  }, []);
+
+  async function toggleTabSetting(key: MoneyTabKey, value: boolean) {
+    if (!tabSettings) return;
+    const next = { ...tabSettings, [key]: value };
+    setTabSettings(next);
+    await saveMoneyTabSettings(next);
+    // 現在表示中のタブがOFFになった場合は支出にフォールバック
+    if (tab === key && !value) setTab('expenses');
+  }
+
+  const enabledTabs = tabSettings
+    ? ALL_MONEY_TABS.filter(t => tabSettings[t.key])
+    : ALL_MONEY_TABS.filter(t => t.key === 'expenses' || t.key === 'subscriptions' || t.key === 'incomes' || t.key === 'salary');
 
   function prevMonth() {
     if (selMonth === 1) { setSelYear(y => y - 1); setSelMonth(12); }
@@ -478,13 +503,25 @@ export default function MoneyScreen() {
 
       {/* ── サブタブ ── */}
       <View style={styles.tabBar}>
-        {([
-          ['expenses', '支出'], ['subscriptions', 'サブスク'], ['incomes', '収入'], ['salary', '給料'], ['cards', 'カード'],
-        ] as [MoneyTab, string][]).map(([key, label]) => (
-          <TouchableOpacity key={key} style={[styles.tabItem, tab === key && styles.tabItemActive]} onPress={() => setTab(key)}>
-            <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ flexDirection: 'row', gap: SPACING.sm, paddingRight: SPACING.sm }}
+          style={{ flex: 1 }}
+        >
+          {enabledTabs.map(({ key, label }) => (
+            <TouchableOpacity key={key} style={[styles.tabItem, tab === key && styles.tabItemActive]} onPress={() => setTab(key)}>
+              <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <TouchableOpacity
+          onPress={() => setTabCustomModal(true)}
+          style={styles.tabAddBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="add" size={20} color={COLORS.gray500} />
+        </TouchableOpacity>
       </View>
 
       {isLoading ? (
@@ -788,6 +825,59 @@ export default function MoneyScreen() {
               )}
             </ScrollView>
           </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── タブカスタマイズモーダル ── */}
+      <Modal visible={tabCustomModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <View style={styles.modalHeader}>
+            <View style={{ width: 60 }} />
+            <Text style={styles.modalTitle}>表示する項目</Text>
+            <TouchableOpacity onPress={() => setTabCustomModal(false)} style={{ width: 60, alignItems: 'flex-end' }}>
+              <Text style={styles.saveText}>完了</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: SPACING.md }}>
+            <Text style={{ fontSize: 13, color: COLORS.gray400, marginBottom: SPACING.md, lineHeight: 18 }}>
+              ONにした項目がお金タブに表示されます。設定は端末に保存されます。
+            </Text>
+            {ALL_MONEY_TABS.map(tabDef => {
+              const isRequired = tabDef.required ?? false;
+              const isDisabled = tabDef.disabled ?? false;
+              const isOn = tabSettings ? tabSettings[tabDef.key] : false;
+              return (
+                <View key={tabDef.key} style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: COLORS.gray100,
+                }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, color: isDisabled ? COLORS.gray300 : COLORS.gray900, fontWeight: '500' }}>
+                      {tabDef.label}
+                      {isRequired && <Text style={{ fontSize: 12, color: COLORS.gray400 }}>（必須）</Text>}
+                      {isDisabled && <Text style={{ fontSize: 12, color: COLORS.gray300 }}>　準備中</Text>}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => !isRequired && !isDisabled && toggleTabSetting(tabDef.key, !isOn)}
+                    activeOpacity={isRequired || isDisabled ? 1 : 0.7}
+                    style={{
+                      width: 50, height: 30, borderRadius: 15,
+                      backgroundColor: (isRequired || isOn) && !isDisabled ? COLORS.primary : COLORS.gray200,
+                      justifyContent: 'center',
+                      paddingHorizontal: 2,
+                      opacity: isDisabled ? 0.4 : 1,
+                    }}
+                  >
+                    <View style={{
+                      width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff',
+                      alignSelf: (isRequired || isOn) && !isDisabled ? 'flex-end' : 'flex-start',
+                    }} />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </ScrollView>
         </SafeAreaView>
       </Modal>
     </View>
@@ -1419,6 +1509,7 @@ const styles = StyleSheet.create({
   tabItemActive: { backgroundColor: COLORS.primary },
   tabText:       { fontSize: 14, fontWeight: '600', color: COLORS.gray600 },
   tabTextActive: { color: '#fff' },
+  tabAddBtn:     { paddingHorizontal: 6, paddingVertical: SPACING.xs + 3, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
 
   // サマリーカード（全タブ共通・白地）
   summaryCard: {
