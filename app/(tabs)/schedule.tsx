@@ -530,11 +530,17 @@ export default function ScheduleScreen() {
           <>
             <Text style={styles.filterBarDate}>{dateSectionLabel(selectedDate)}</Text>
             <TouchableOpacity style={styles.clearDateBtn} onPress={() => setSelectedDate(null)}>
-              <Text style={styles.clearDateText}>× 全て表示</Text>
+              <Text style={styles.clearDateText}>全て表示</Text>
             </TouchableOpacity>
           </>
         ) : (
-          <Text style={styles.filterBarAll}>すべての予定 ({allItems.length}件)</Text>
+          <>
+            <Text style={styles.filterBarAll}>すべての予定 ({allItems.length}件)</Text>
+            <TouchableOpacity style={styles.clearDateBtn} onPress={() => setSelectedDate(TODAY)}>
+              <Ionicons name="calendar-outline" size={13} color={COLORS.primary} />
+              <Text style={styles.backToCalText}>今日に戻る</Text>
+            </TouchableOpacity>
+          </>
         )}
       </View>
 
@@ -948,8 +954,9 @@ const styles = StyleSheet.create({
   },
   filterBarDate: { fontSize: 14, fontWeight: '700', color: COLORS.gray900 },
   filterBarAll:  { fontSize: 13, fontWeight: '600', color: COLORS.gray600 },
-  clearDateBtn:  { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.primary },
+  clearDateBtn:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.primary },
   clearDateText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
+  backToCalText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
 
   // リスト
   list:       { flex: 1 },
