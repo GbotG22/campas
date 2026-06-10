@@ -6,25 +6,34 @@ export type CreditCard = Database['public']['Tables']['credit_cards']['Row'];
 export type CreditCardInsert = Database['public']['Tables']['credit_cards']['Insert'];
 export type CreditCardUpdate = Database['public']['Tables']['credit_cards']['Update'];
 
+/** closing_day=31 など月をまたぐ overflow を防ぐ: 月の末日にクランプ */
+function clampDay(year: number, month0: number, day: number): Date {
+  // new Date(y, m+1, 0) → month の最終日
+  const lastDay = new Date(year, month0 + 1, 0).getDate();
+  return new Date(year, month0, Math.min(day, lastDay));
+}
+
 /** 締め日を起点に今期の開始日・終了日（締め日当日）を返す */
 export function getClosingPeriod(card: CreditCard, today: Date = new Date()) {
   const y = today.getFullYear();
   const m = today.getMonth(); // 0-based
   const d = today.getDate();
 
-  // 今月締め日
-  const closingThisMonth = new Date(y, m, card.closing_day);
+  const closingThisMonth = clampDay(y, m, card.closing_day);
+  const actualClosingDay = closingThisMonth.getDate();
+
   let periodEnd: Date;
   let periodStart: Date;
 
-  if (d <= card.closing_day) {
+  if (d <= actualClosingDay) {
     // 今月の締め日がまだ来ていない → 今期
-    periodEnd = closingThisMonth;
-    periodStart = new Date(y, m - 1, card.closing_day + 1);
+    periodEnd   = closingThisMonth;
+    const prevClosing = clampDay(y, m - 1, card.closing_day);
+    periodStart = new Date(prevClosing.getFullYear(), prevClosing.getMonth(), prevClosing.getDate() + 1);
   } else {
     // 今月の締め日を過ぎた → 次期
-    periodEnd = new Date(y, m + 1, card.closing_day);
-    periodStart = new Date(y, m, card.closing_day + 1);
+    periodEnd   = clampDay(y, m + 1, card.closing_day);
+    periodStart = new Date(y, m, actualClosingDay + 1);
   }
 
   return { periodStart, periodEnd };
@@ -33,9 +42,8 @@ export function getClosingPeriod(card: CreditCard, today: Date = new Date()) {
 /** 引き落とし日を返す */
 export function getPaymentDate(card: CreditCard, today: Date = new Date()): Date {
   const { periodEnd } = getClosingPeriod(card, today);
-  const base = periodEnd;
-  const payMonth = base.getMonth() + card.payment_month_offset;
-  return new Date(base.getFullYear(), payMonth, card.payment_day);
+  const payMonth = periodEnd.getMonth() + card.payment_month_offset;
+  return clampDay(periodEnd.getFullYear(), payMonth, card.payment_day);
 }
 
 export function useCreditCards() {

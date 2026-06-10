@@ -97,6 +97,11 @@ export default function MoneyScreen() {
 
   // ── データフック ───────────────────────────────────────────
   const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses(selYear, selMonth);
+  // カードタブ: 請求期間が2ヶ月にまたがるため前月分も取得して結合
+  const prevMonthYear  = selMonth === 1 ? selYear - 1 : selYear;
+  const prevMonthMonth = selMonth === 1 ? 12 : selMonth - 1;
+  const { expenses: prevExpenses } = useExpenses(prevMonthYear, prevMonthMonth);
+  const allExpensesForCard = useMemo(() => [...expenses, ...prevExpenses], [expenses, prevExpenses]);
   const { cards, loading: cardLoading, addCard, updateCard, deleteCard } = useCreditCards();
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subTotal } = useSubscriptions();
   const { incomes, salaryRecords: salaryRecordsRaw, isLoading: incLoading, addIncome, deleteIncome, addSalaryRecord, deleteSalaryRecord } = useIncomes();
@@ -176,6 +181,9 @@ export default function MoneyScreen() {
     const amount = parseInt(expAmount, 10);
     if (!expTitle.trim() || isNaN(amount) || amount <= 0) {
       Alert.alert('入力エラー', '内容と金額を入力してください'); return;
+    }
+    if (expPayMethod === 'credit' && !expCardId) {
+      Alert.alert('入力エラー', 'クレカを選択してください。先にカードタブでカードを登録してください。'); return;
     }
     setExpSaving(true);
     const payload = {
@@ -429,7 +437,7 @@ export default function MoneyScreen() {
     else if (tab === 'subscriptions') openSubModal();
     else if (tab === 'incomes')       openAddIncModal();
     else if (tab === 'salary')        openSalaryModal();
-    else if (tab === 'cards')         setCardModal(true);
+    else if (tab === 'cards')         openAddCardModal();
   }
 
   return (
@@ -485,7 +493,7 @@ export default function MoneyScreen() {
           {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
           {tab === 'subscriptions' && <SubscriptionsTab {...{ subscriptions, monthlyTotal: subTotal }} onEdit={openSubModal} onDelete={id => deleteSubscription(id)} />}
           {tab === 'incomes'       && <IncomesTab incomes={selMonthIncomes} monthlyTotal={monthlyIncomeTotal} monthLabel={selMonthLabel} onDelete={deleteIncome} />}
-          {tab === 'cards'         && <CardsTab cards={cards} expenses={expenses} onEdit={openEditCard} onDelete={id => Alert.alert('削除', 'カードを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteCard(id) }])} />}
+          {tab === 'cards'         && <CardsTab cards={cards} expenses={allExpensesForCard} onEdit={openEditCard} onDelete={id => Alert.alert('削除', 'カードを削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteCard(id) }])} />}
           {tab === 'salary'        && <SalaryTab workplaces={workplaces} thisMonthShifts={thisMonthShifts} allShifts={shifts} salaryRecords={salaryRecords} monthLabel={selMonthLabel} onAddWorkplace={() => openWpModal()} onEditWorkplace={openWpModal} onDeleteWorkplace={(id) => Alert.alert('削除', 'バイト先を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteWorkplace(id) }])} onAddSalary={openSalaryModal} onDeleteSalary={id => Alert.alert('削除', '給与記録を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: () => deleteSalaryRecord(id) }])} />}
         </View>
       )}
