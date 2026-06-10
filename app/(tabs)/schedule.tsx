@@ -20,6 +20,7 @@ import {
   TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
@@ -411,7 +412,8 @@ export default function ScheduleScreen() {
         <View style={styles.headerRight}>
           {/* AI分析ボタン */}
           <TouchableOpacity style={styles.aiBtn} onPress={openAI}>
-            <Text style={styles.aiBtnText}>✨ AI分析</Text>
+            <Ionicons name="sparkles-outline" size={14} color={COLORS.primary} />
+            <Text style={styles.aiBtnText}>AI分析</Text>
           </TouchableOpacity>
 
           {/* Googleカレンダー連携ボタン */}
@@ -427,7 +429,7 @@ export default function ScheduleScreen() {
                 )
               }
             >
-              <Text style={styles.gcalBtnDisabledText}>🔒 G連携</Text>
+              <Text style={styles.gcalBtnDisabledText}>G連携</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -454,7 +456,7 @@ export default function ScheduleScreen() {
               disabled={gcalLoading}
             >
               <Text style={[styles.gcalBtnText, gcalConnected && styles.gcalBtnTextActive]}>
-                {gcalLoading ? '…' : gcalConnected ? '🔵 G連携中' : '⬜ G連携'}
+                {gcalLoading ? '…' : gcalConnected ? 'G連携中' : 'G連携'}
               </Text>
             </TouchableOpacity>
           )}
@@ -479,7 +481,7 @@ export default function ScheduleScreen() {
             disabled={nativeLoading}
           >
             <Text style={[styles.nativeCalBtnText, nativeConnected && styles.nativeCalBtnTextActive]}>
-              {nativeLoading ? '…' : nativeConnected ? '🟢 端末中' : '📅 端末'}
+              {nativeLoading ? '…' : nativeConnected ? '端末中' : '端末'}
             </Text>
           </TouchableOpacity>
 
@@ -557,11 +559,11 @@ export default function ScheduleScreen() {
               {dayItems.map(item => {
                 const isReadOnly = item.source === 'google' || item.source === 'native';
                 const cfg = item.type === 'shift'
-                  ? { emoji: '💼', label: 'バイト',         color: item.color, bg: '#ECFDF5', canComplete: false }
+                  ? { icon: 'briefcase-outline',      label: 'バイト',         color: item.color, bg: '#ECFDF5', canComplete: false }
                   : item.source === 'google'
-                  ? { emoji: '📅', label: 'Gカレンダー',   color: GCAL_COLOR,  bg: '#EBF3FF', canComplete: false }
+                  ? { icon: 'logo-google',             label: 'Gカレンダー',   color: GCAL_COLOR,  bg: '#EBF3FF', canComplete: false }
                   : item.source === 'native'
-                  ? { emoji: '📱', label: '端末カレンダー', color: item.color,  bg: '#F0FDF4', canComplete: false }
+                  ? { icon: 'phone-portrait-outline',  label: '端末カレンダー', color: item.color,  bg: '#F0FDF4', canComplete: false }
                   : EVENT_CONFIG[item.type as EventType];
                 return (
                   <TouchableOpacity
@@ -580,7 +582,7 @@ export default function ScheduleScreen() {
                         {item.isDone && <Text style={styles.checkMark}>✓</Text>}
                       </TouchableOpacity>
                     ) : (
-                      <Text style={styles.emoji}>{cfg.emoji}</Text>
+                      <Ionicons name={cfg.icon as any} size={18} color={item.color} style={styles.itemIcon} />
                     )}
                     <View style={styles.itemBody}>
                       <Text style={[styles.itemTitle, item.isDone && styles.doneText]} numberOfLines={1}>
@@ -589,7 +591,7 @@ export default function ScheduleScreen() {
                       <View style={styles.itemMeta}>
                         {item.time && (
                           <Text style={styles.metaText}>
-                            🕐 {item.time}{item.endTime ? ` 〜 ${item.endTime}` : ''}
+                            {item.time}{item.endTime ? ` 〜 ${item.endTime}` : ''}
                           </Text>
                         )}
                         {!item.time && isReadOnly && (
@@ -648,7 +650,7 @@ export default function ScheduleScreen() {
                         {grp.types.map(t => {
                           const isShift = t === 'shift';
                           const cfg     = isShift
-                            ? { emoji: '💼', label: 'バイト', color: '#10B981' }
+                            ? { icon: 'briefcase-outline', label: 'バイト', color: '#10B981' }
                             : EVENT_CONFIG[t as EventType];
                           const active  = isShift ? shiftMode : (!shiftMode && evType === t);
                           return (
@@ -665,7 +667,7 @@ export default function ScheduleScreen() {
                               }}
                             >
                               <Text style={[styles.typeBtnText, active && { color: '#fff' }]}>
-                                {cfg.emoji} {cfg.label}
+                                {cfg.label}
                               </Text>
                             </TouchableOpacity>
                           );
@@ -704,7 +706,7 @@ export default function ScheduleScreen() {
                   {shiftStart && shiftEnd && shiftWorkplace && (
                     <View style={styles.wagePreview}>
                       <Text style={styles.wagePreviewText}>
-                        💰 給料見込み：¥{calcWage(
+                        給料見込み：¥{calcWage(
                           workplaces.find(w => w.id === shiftWorkplace)?.hourly_wage ?? 1000,
                           shiftStart, shiftEnd, parseInt(shiftBreak, 10) || 0,
                         ).toLocaleString()}
@@ -756,7 +758,7 @@ export default function ScheduleScreen() {
             <SafeAreaView style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <View style={{ width: 60 }} />
-                <Text style={styles.modalTitle}>📱 カレンダー詳細</Text>
+                <Text style={styles.modalTitle}>カレンダー詳細</Text>
                 <TouchableOpacity onPress={() => setNativeDetailItem(null)}>
                   <Text style={styles.modalCancel}>閉じる</Text>
                 </TouchableOpacity>
@@ -769,12 +771,12 @@ export default function ScheduleScreen() {
                 </View>
                 {/* カレンダー名 */}
                 <View style={styles.nativeDetailRow}>
-                  <Text style={styles.nativeDetailLabel}>📅 カレンダー</Text>
+                  <Text style={styles.nativeDetailLabel}>カレンダー</Text>
                   <Text style={styles.nativeDetailValue}>{ev.calendarTitle}</Text>
                 </View>
                 {/* 日付 */}
                 <View style={styles.nativeDetailRow}>
-                  <Text style={styles.nativeDetailLabel}>🗓 日時</Text>
+                  <Text style={styles.nativeDetailLabel}>日時</Text>
                   <Text style={styles.nativeDetailValue}>
                     {fmtShort(nativeDetailItem.date)}{'  '}{timeStr}
                   </Text>
@@ -782,7 +784,7 @@ export default function ScheduleScreen() {
                 {/* メモ */}
                 {ev.notes ? (
                   <View style={styles.nativeDetailRow}>
-                    <Text style={styles.nativeDetailLabel}>📝 メモ</Text>
+                    <Text style={styles.nativeDetailLabel}>メモ</Text>
                     <Text style={[styles.nativeDetailValue, { flex: 1 }]}>{ev.notes}</Text>
                   </View>
                 ) : null}
@@ -802,7 +804,7 @@ export default function ScheduleScreen() {
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <View style={{ width: 60 }} />
-            <Text style={styles.modalTitle}>✨ AI予定分析</Text>
+            <Text style={styles.modalTitle}>AI予定分析</Text>
             <TouchableOpacity onPress={() => { setAiModalVisible(false); clearAI(); }}>
               <Text style={styles.modalCancel}>閉じる</Text>
             </TouchableOpacity>
@@ -811,7 +813,6 @@ export default function ScheduleScreen() {
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             {isAnalyzing && (
               <View style={styles.aiLoadingWrap}>
-                <Text style={styles.aiLoadingEmoji}>🤔</Text>
                 <Text style={styles.aiLoadingText}>予定を分析中...</Text>
                 <Text style={styles.aiLoadingNote}>Claude に聞いています</Text>
               </View>
@@ -820,7 +821,7 @@ export default function ScheduleScreen() {
             {!isAnalyzing && advice && (
               <View style={styles.aiResultWrap}>
                 <View style={styles.aiResultHeader}>
-                  <Text style={styles.aiResultLabel}>✨ AIからのアドバイス</Text>
+                  <Text style={styles.aiResultLabel}>AIからのアドバイス</Text>
                   <TouchableOpacity
                     style={styles.aiRetryBtn}
                     onPress={openAI}
@@ -834,7 +835,7 @@ export default function ScheduleScreen() {
 
             {!isAnalyzing && aiError && (
               <View style={styles.aiErrorWrap}>
-                <Text style={styles.aiErrorEmoji}>⚠️</Text>
+                <Ionicons name="warning-outline" size={28} color={COLORS.danger} style={{ marginBottom: 8 }} />
                 <Text style={styles.aiErrorText}>{aiError}</Text>
                 <TouchableOpacity style={styles.aiRetryBtn} onPress={openAI}>
                   <Text style={styles.aiRetryText}>再試行</Text>
@@ -844,17 +845,16 @@ export default function ScheduleScreen() {
 
             {!isAnalyzing && !advice && !aiError && (
               <View style={styles.aiLoadingWrap}>
-                <Text style={styles.aiLoadingEmoji}>📊</Text>
                 <Text style={styles.aiLoadingText}>分析を開始します...</Text>
               </View>
             )}
 
             <View style={styles.aiNote}>
               <Text style={styles.aiNoteText}>
-                💡 分析対象: アプリ内の予定（Googleカレンダーを除く）
+                分析対象: アプリ内の予定（Googleカレンダーを除く）
               </Text>
               <Text style={styles.aiNoteText}>
-                🔑 Powered by Anthropic Claude
+                Powered by Anthropic Claude
               </Text>
             </View>
           </ScrollView>
@@ -892,7 +892,7 @@ const styles = StyleSheet.create({
   addBtnText:   { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   // AI ボタン
-  aiBtn:     { borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#EDE9FE', borderWidth: 1.5, borderColor: '#8B5CF6' },
+  aiBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: RADIUS.sm + 2, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#EDE9FE', borderWidth: 1.5, borderColor: '#8B5CF6' },
   aiBtnText: { fontSize: 12, fontWeight: '700', color: '#7C3AED' },
 
   // Googleカレンダーボタン
@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
   },
   check:     { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: COLORS.gray200, alignItems: 'center', justifyContent: 'center' },
   checkMark: { fontSize: 12, color: '#fff', fontWeight: '800' },
-  emoji:     { fontSize: 20, width: 26, textAlign: 'center' },
+  itemIcon:  { width: 26, textAlign: 'center' },
   itemBody:  { flex: 1 },
   itemTitle: { fontSize: 14, fontWeight: '700', color: COLORS.gray900, lineHeight: 20 },
   itemMeta:  { flexDirection: 'row', gap: 8, marginTop: 3, flexWrap: 'wrap' },

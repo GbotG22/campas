@@ -35,7 +35,7 @@ function DueBadge({ days }: { days: number | null }) {
   return (
     <View style={[styles.dueBadge, overdue ? styles.dueBadgeOverdue : urgent ? styles.dueBadgeUrgent : styles.dueBadgeNormal]}>
       <Text style={[styles.dueBadgeText, { color: overdue ? COLORS.danger : urgent ? COLORS.warning : COLORS.gray600 }]}>
-        📅 {label}
+        {label}
       </Text>
     </View>
   );
@@ -163,10 +163,10 @@ export default function AssignmentsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          <Section label="⚠️ 期限切れ" color={COLORS.danger} items={overdue} />
-          <Section label="🔥 3日以内" color={COLORS.warning} items={urgent} />
-          <Section label="📅 4日以降" color={COLORS.primary} items={upcoming} />
-          <Section label="📌 締切なし" color={COLORS.gray400} items={noDate} />
+          <Section label="期限切れ" color={COLORS.danger} items={overdue} />
+          <Section label="3日以内" color={COLORS.warning} items={urgent} />
+          <Section label="4日以降" color={COLORS.primary} items={upcoming} />
+          <Section label="締切なし" color={COLORS.gray400} items={noDate} />
         </ScrollView>
       )}
 

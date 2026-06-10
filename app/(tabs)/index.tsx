@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS } from '@/constants/theme';
@@ -39,7 +40,7 @@ export default function HomeScreen() {
   const { nativeEvents, isConnected: nativeConnected } = useNativeCalendar();
 
   const hour     = today.getHours();
-  const greeting = hour < 10 ? 'おはようございます ☀️' : hour < 18 ? 'こんにちは 👋' : 'お疲れ様です 🌙';
+  const greeting = hour < 10 ? 'おはようございます' : hour < 18 ? 'こんにちは' : 'お疲れ様です';
 
   // メールアドレスの @ 前をユーザー名として使用（例: kazuki@gmail.com → kazuki）
   const userName = user?.email?.split('@')[0] ?? '';
@@ -141,7 +142,7 @@ export default function HomeScreen() {
               </View>
             </View>
             <View style={[styles.eventRow, { borderLeftColor: nextShift.workplace?.color ?? COLORS.success, marginBottom: 0 }]}>
-              <Text style={styles.eventEmoji}>💼</Text>
+              <Ionicons name="briefcase-outline" size={16} color={nextShift.workplace?.color ?? COLORS.success} style={styles.eventIcon} />
               <View style={styles.eventBody}>
                 <Text style={styles.eventTitle}>{nextShift.workplace?.name ?? 'バイト'}</Text>
                 <Text style={styles.eventMeta}>
@@ -180,7 +181,7 @@ export default function HomeScreen() {
           )}
           {selShifts.map(s => (
             <View key={s.id} style={[styles.eventRow, { borderLeftColor: s.workplace?.color ?? COLORS.success }]}>
-              <Text style={styles.eventEmoji}>💼</Text>
+              <Ionicons name="briefcase-outline" size={16} color={s.workplace?.color ?? COLORS.success} style={styles.eventIcon} />
               <View style={styles.eventBody}>
                 <Text style={styles.eventTitle}>{s.workplace?.name ?? 'バイト'}</Text>
                 <Text style={styles.eventMeta}>
@@ -193,7 +194,7 @@ export default function HomeScreen() {
             const cfg = EVENT_CONFIG[e.event_type];
             return (
               <View key={e.id} style={[styles.eventRow, { borderLeftColor: cfg.color }]}>
-                <Text style={styles.eventEmoji}>{cfg.emoji}</Text>
+                <Ionicons name={cfg.icon as any} size={16} color={cfg.color} style={styles.eventIcon} />
                 <View style={styles.eventBody}>
                   <Text style={[styles.eventTitle, e.is_done && styles.doneText]}>{e.title}</Text>
                   {e.start_time && (
@@ -210,7 +211,7 @@ export default function HomeScreen() {
           })}
           {selNativeEvents.map(e => (
             <View key={`native_${e.id}`} style={[styles.eventRow, { borderLeftColor: e.color }]}>
-              <Text style={styles.eventEmoji}>📱</Text>
+              <Ionicons name="phone-portrait-outline" size={16} color={e.color} style={styles.eventIcon} />
               <View style={styles.eventBody}>
                 <Text style={styles.eventTitle}>{e.title}</Text>
                 <Text style={styles.eventMeta}>
@@ -235,11 +236,11 @@ export default function HomeScreen() {
                 <View key={s.id} style={styles.slotCard}>
                   {/* 授業情報 */}
                   <View style={[styles.eventRow, { borderLeftColor: s.color ?? COLORS.primary, marginBottom: 0 }]}>
-                    <Text style={styles.eventEmoji}>📅</Text>
+                    <Ionicons name="book-outline" size={16} color={s.color ?? COLORS.primary} style={styles.eventIcon} />
                     <View style={styles.eventBody}>
                       <Text style={styles.eventTitle}>{s.subject_name}</Text>
                       <Text style={styles.eventMeta}>
-                        {s.period}限{s.room ? `　📍${s.room}` : ''}
+                        {s.period}限{s.room ? `　${s.room}` : ''}
                       </Text>
                     </View>
                     {/* 出席状況バッジ */}
@@ -284,12 +285,12 @@ export default function HomeScreen() {
         {/* ── 今日の締切（完了ボタン付き） ── */}
         {todayDeadlines.length > 0 && (
           <View style={[styles.card, styles.deadlineCard]}>
-            <SectionHeader title="今日の締切 🔥" />
+            <SectionHeader title="今日の締切" />
             {todayDeadlines.map(e => {
               const cfg = EVENT_CONFIG[e.event_type];
               return (
                 <View key={e.id} style={[styles.eventRow, { borderLeftColor: cfg.color }]}>
-                  <Text style={styles.eventEmoji}>{cfg.emoji}</Text>
+                  <Ionicons name={cfg.icon as any} size={16} color={cfg.color} style={styles.eventIcon} />
                   <View style={styles.eventBody}>
                     <Text style={styles.eventTitle}>{e.title}</Text>
                     <Text style={[styles.eventMeta, { color: COLORS.amber }]}>
@@ -321,7 +322,7 @@ export default function HomeScreen() {
               const isUrgent = diff <= 2;
               return (
                 <View key={e.id} style={[styles.eventRow, { borderLeftColor: cfg.color }]}>
-                  <Text style={styles.eventEmoji}>{cfg.emoji}</Text>
+                  <Ionicons name={cfg.icon as any} size={16} color={cfg.color} style={styles.eventIcon} />
                   <View style={styles.eventBody}>
                     <Text style={styles.eventTitle}>{e.title}</Text>
                     <Text style={styles.eventMeta}>{e.start_date}</Text>
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     gap: SPACING.sm,
   },
-  eventEmoji: { fontSize: 16 },
+  eventIcon: { width: 20, textAlign: 'center' },
   eventBody:  { flex: 1 },
   eventTitle: { fontSize: 14, fontWeight: '600', color: COLORS.gray900 },
   eventMeta:  { fontSize: 12, color: COLORS.gray400, marginTop: 2 },

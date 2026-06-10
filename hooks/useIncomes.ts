@@ -10,12 +10,12 @@ type InsertIncome        = Database['public']['Tables']['incomes']['Insert'];
 export type SalaryRecord = Database['public']['Tables']['salary_records']['Row'];
 type InsertSalaryRecord  = Database['public']['Tables']['salary_records']['Insert'];
 
-export const INCOME_TYPE_CONFIG: Record<IncomeType, { label: string; color: string; emoji: string }> = {
-  salary:    { label: '給与',         color: '#10B981', emoji: '💰' },
-  allowance: { label: '仕送り',       color: '#6366F1', emoji: '🏠' },
-  bonus:     { label: 'ボーナス',     color: '#F59E0B', emoji: '🎁' },
-  part_time: { label: 'アルバイト',   color: '#06B6D4', emoji: '💼' },
-  other:     { label: 'その他収入',   color: '#9CA3AF', emoji: '📥' },
+export const INCOME_TYPE_CONFIG: Record<IncomeType, { label: string; color: string; icon: string }> = {
+  salary:    { label: '給与',         color: '#10B981', icon: 'cash-outline' },
+  allowance: { label: '仕送り',       color: '#6366F1', icon: 'home-outline' },
+  bonus:     { label: 'ボーナス',     color: '#F59E0B', icon: 'gift-outline' },
+  part_time: { label: 'アルバイト',   color: '#06B6D4', icon: 'briefcase-outline' },
+  other:     { label: 'その他収入',   color: '#9CA3AF', icon: 'ellipsis-horizontal-circle-outline' },
 };
 
 const incomeCacheKey = (uid: string) => `campas_incomes_${uid}`;

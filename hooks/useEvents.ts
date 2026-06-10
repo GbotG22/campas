@@ -9,17 +9,17 @@ export type { AppEvent } from '@/stores/events.store';
 type InsertEvent = Database['public']['Tables']['events']['Insert'];
 
 export const EVENT_CONFIG: Record<EventType, {
-  label: string; color: string; bg: string; emoji: string; canComplete: boolean;
+  label: string; color: string; bg: string; icon: string; canComplete: boolean;
 }> = {
-  assignment:   { label: '課題',     color: '#F59E0B', bg: '#FFFBEB', emoji: '📝', canComplete: true  },
-  test:         { label: 'テスト',   color: '#EF4444', bg: '#FEF2F2', emoji: '📊', canComplete: true  },
-  report:       { label: 'レポート', color: '#8B5CF6', bg: '#F5F3FF', emoji: '📄', canComplete: true  },
-  school_event: { label: '学校行事', color: '#3B82F6', bg: '#EFF6FF', emoji: '🏫', canComplete: false },
-  circle:       { label: 'サークル', color: '#EC4899', bg: '#FDF2F8', emoji: '🎭', canComplete: false },
-  personal:     { label: '個人予定', color: '#6366F1', bg: '#EEF2FF', emoji: '📅', canComplete: false },
-  class_cancel: { label: '休講',     color: '#9CA3AF', bg: '#F9FAFB', emoji: '🚫', canComplete: false },
-  class_makeup: { label: '補講',     color: '#059669', bg: '#ECFDF5', emoji: '📚', canComplete: false },
-  other:        { label: 'その他',   color: '#6B7280', bg: '#F9FAFB', emoji: '📌', canComplete: false },
+  assignment:   { label: '課題',     color: '#F59E0B', bg: '#FFFBEB', icon: 'document-text-outline',           canComplete: true  },
+  test:         { label: 'テスト',   color: '#EF4444', bg: '#FEF2F2', icon: 'clipboard-outline',               canComplete: true  },
+  report:       { label: 'レポート', color: '#8B5CF6', bg: '#F5F3FF', icon: 'document-outline',                canComplete: true  },
+  school_event: { label: '学校行事', color: '#3B82F6', bg: '#EFF6FF', icon: 'school-outline',                  canComplete: false },
+  circle:       { label: 'サークル', color: '#EC4899', bg: '#FDF2F8', icon: 'people-outline',                  canComplete: false },
+  personal:     { label: '個人予定', color: '#6366F1', bg: '#EEF2FF', icon: 'calendar-outline',                canComplete: false },
+  class_cancel: { label: '休講',     color: '#9CA3AF', bg: '#F9FAFB', icon: 'close-circle-outline',            canComplete: false },
+  class_makeup: { label: '補講',     color: '#059669', bg: '#ECFDF5', icon: 'add-circle-outline',              canComplete: false },
+  other:        { label: 'その他',   color: '#6B7280', bg: '#F9FAFB', icon: 'ellipsis-horizontal-circle-outline', canComplete: false },
 };
 
 export function useEvents() {

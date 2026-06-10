@@ -519,7 +519,7 @@ export default function MoneyScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
                 {(Object.entries(INCOME_TYPE_CONFIG) as [IncomeType, typeof INCOME_TYPE_CONFIG[IncomeType]][]).map(([k, cfg]) => (
                   <TouchableOpacity key={k} style={[styles.chip, { borderColor: cfg.color }, incType === k && { backgroundColor: cfg.color }]} onPress={() => setIncType(k)}>
-                    <Text style={[styles.chipText, incType === k && { color: '#fff' }]}>{cfg.emoji} {cfg.label}</Text>
+                    <Text style={[styles.chipText, incType === k && { color: '#fff' }]}>{cfg.label}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -590,7 +590,7 @@ export default function MoneyScreen() {
             <ScrollView style={{ padding: 16 }} keyboardShouldPersistTaps="handled">
               {workplaces.length === 0 ? (
                 <View style={styles.empty}>
-                  <Text style={{ fontSize: 36 }}>🏢</Text>
+                  <Ionicons name="business-outline" size={36} color="#D1D5DB" />
                   <Text style={styles.emptyText}>先にバイト先を登録してください</Text>
                 </View>
               ) : (
@@ -725,7 +725,7 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
 
       <Text style={styles.listSectionLabel}>明細</Text>
       {expenses.length === 0 ? (
-        <Empty emoji="💰" text="この月の支出はまだありません" />
+        <Empty icon="receipt-outline" text="この月の支出はまだありません" />
       ) : expenses.map(item => (
         <TouchableOpacity key={item.id} style={styles.row} onPress={() => onEdit(item)} activeOpacity={0.75}>
           <View style={[styles.dot, { backgroundColor: CAT_COLORS[item.category as Category] ?? COLORS.gray400 }]} />
@@ -897,7 +897,7 @@ function SubscriptionsTab({ subscriptions, monthlyTotal, onEdit, onDelete }: {
 
       {/* サブスク一覧 */}
       {subscriptions.length === 0 ? (
-        <Empty emoji="🔄" text="サブスクが登録されていません" />
+        <Empty icon="reload-outline" text="サブスクが登録されていません" />
       ) : subscriptions.map(sub => (
         <SubCard
           key={sub.id}
@@ -936,7 +936,7 @@ function IncomesTab({ incomes, monthlyTotal, monthLabel, onDelete }: {
               const cfg = INCOME_TYPE_CONFIG[type];
               return (
                 <View key={type} style={{ backgroundColor: COLORS.successLight, borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 5 }}>
-                  <Text style={{ color: COLORS.success, fontSize: 12, fontWeight: '700' }}>{cfg.emoji} {cfg.label} ¥{total.toLocaleString()}</Text>
+                  <Text style={{ color: COLORS.success, fontSize: 12, fontWeight: '700' }}>{cfg.label} ¥{total.toLocaleString()}</Text>
                 </View>
               );
             })}
@@ -946,12 +946,12 @@ function IncomesTab({ incomes, monthlyTotal, monthLabel, onDelete }: {
 
       <Text style={styles.listSectionLabel}>収入履歴</Text>
       {incomes.length === 0 ? (
-        <Empty emoji="💰" text="この月の収入はまだありません" />
+        <Empty icon="wallet-outline" text="この月の収入はまだありません" />
       ) : incomes.map(item => {
         const cfg = INCOME_TYPE_CONFIG[item.income_type];
         return (
           <View key={item.id} style={styles.row}>
-            <Text style={{ fontSize: 22 }}>{cfg.emoji}</Text>
+            <Ionicons name={cfg.icon as any} size={20} color={cfg.color} />
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>{item.title}</Text>
               <Text style={styles.rowMeta}>{cfg.label} · {item.received_at}</Text>
@@ -1034,7 +1034,7 @@ function SalaryTab({
         <Text style={styles.sectionTitle}>次の給料</Text>
       </View>
       {workplaces.length === 0 ? (
-        <Empty emoji="🏢" text="バイト先を登録してください" />
+        <Empty icon="business-outline" text="バイト先を登録してください" />
       ) : nextPayCards.length === 0 ? (
         <View style={[styles.card, { alignItems: 'center', paddingVertical: SPACING.lg }]}>
           <Text style={{ fontSize: 13, color: COLORS.gray400 }}>近い給与期間にシフトが登録されていません</Text>
@@ -1073,7 +1073,7 @@ function SalaryTab({
         <Text style={styles.sectionTitle}>{monthLabel}の勤務</Text>
       </View>
       {thisMonthShifts.length === 0 ? (
-        <Empty emoji="📅" text="この月のシフトはまだありません" />
+        <Empty icon="calendar-outline" text="この月のシフトはまだありません" />
       ) : (
         <View style={styles.summaryCard}>
           <Text style={styles.summarySubLabel}>合計給与見込み</Text>
@@ -1112,7 +1112,7 @@ function SalaryTab({
         </TouchableOpacity>
       </View>
       {workplaces.length === 0 ? (
-        <Empty emoji="🏢" text="バイト先を登録してください" />
+        <Empty icon="business-outline" text="バイト先を登録してください" />
       ) : workplaces.map(wp => (
         <TouchableOpacity key={wp.id} style={styles.card} onPress={() => onEditWorkplace(wp)} activeOpacity={0.8}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -1140,7 +1140,7 @@ function SalaryTab({
         </TouchableOpacity>
       </View>
       {salaryRecords.length === 0 ? (
-        <Empty emoji="📋" text="給与記録がありません" />
+        <Empty icon="document-text-outline" text="給与記録がありません" />
       ) : salaryRecords.map(r => (
         <View key={r.id} style={styles.row}>
           <Text style={{ fontSize: 22 }}>💴</Text>
@@ -1175,10 +1175,10 @@ function ModalHeader({ title, onCancel, onSave, saveLabel, disabled }: {
   );
 }
 
-function Empty({ emoji, text }: { emoji: string; text: string }) {
+function Empty({ icon, text }: { icon: string; text: string }) {
   return (
     <View style={styles.empty}>
-      <Text style={{ fontSize: 40 }}>{emoji}</Text>
+      <Ionicons name={icon as any} size={36} color="#D1D5DB" />
       <Text style={styles.emptyText}>{text}</Text>
     </View>
   );
