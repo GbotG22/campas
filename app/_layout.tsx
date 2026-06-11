@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 
 import { supabase } from '@/lib/supabase';
 import { configureRevenueCat } from '@/lib/revenuecat';
@@ -13,18 +14,22 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useEntitlementStore } from '@/stores/entitlement.store';
 import { useProfileStore } from '@/stores/profile.store';
 
+// セッション確認完了までスプラッシュを保持する
+SplashScreen.preventAutoHideAsync();
+
 export default function RootLayout() {
-  const { setSession } = useAuthStore();
+  const { session, isLoading, setSession } = useAuthStore();
   const { refresh: refreshEntitlements } = useEntitlementStore();
   const { fetch: fetchProfile } = useProfileStore();
+  const segments = useSegments();
+  const router = useRouter();
 
+  // セッション初期化
   useEffect(() => {
-    // 通知ハンドラー・カテゴリ登録・権限リクエスト（失敗しても続行）
     initNotificationHandler();
     registerNotificationCategories().catch(() => {});
     requestNotificationPermission().catch(() => {});
 
-    // Supabase セッション取得
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
@@ -33,7 +38,7 @@ export default function RootLayout() {
           .catch(() => {});
         fetchProfile().catch(() => {});
       }
-    }).catch(() => {});
+    }).catch(() => setSession(null));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -47,6 +52,21 @@ export default function RootLayout() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // 認証状態確定後にナビゲーション + スプラッシュ非表示
+  useEffect(() => {
+    if (isLoading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!session && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    } else if (session && inAuthGroup) {
+      router.replace('/(tabs)');
+    }
+
+    SplashScreen.hideAsync();
+  }, [session, isLoading]);
 
   return (
     <>

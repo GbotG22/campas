@@ -7,8 +7,11 @@ import { COLORS } from '@/constants/theme';
 export default function TabsLayout() {
   const { session, isLoading: authLoading } = useAuthStore();
 
-  // 未ログインならログイン画面へリダイレクト
-  if (!authLoading && !session) {
+  // ルートレイアウトがナビゲーション制御するので、ローディング中は何も描画しない
+  if (authLoading) return null;
+
+  // セカンダリ保護：万が一未ログインで tabs に到達した場合
+  if (!session) {
     return <Redirect href="/(auth)/login" />;
   }
 
