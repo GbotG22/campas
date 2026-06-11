@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
@@ -19,7 +20,7 @@ const DEV_PREMIUM_KEY  = 'campas_dev_premium';
 const DEV_AI_PLUS_KEY  = 'campas_dev_ai_plus';
 
 export default function SettingsScreen() {
-  const { user, signOut, deleteAccount } = useAuthStore();
+  const { user, signOut, deleteAccount, refreshUser } = useAuthStore();
   const { displayName, update: updateProfile } = useProfileStore();
   const { isPremium, isAiPlus, isLoading: planLoading, refresh } = usePremium();
 
@@ -32,6 +33,10 @@ export default function SettingsScreen() {
   useEffect(() => {
     setNameInput(displayName ?? '');
   }, [displayName]);
+
+  useFocusEffect(useCallback(() => {
+    refreshUser();
+  }, []));
 
   async function handleSaveName() {
     if (nameSaving) return;
@@ -71,7 +76,8 @@ export default function SettingsScreen() {
 
   // ── パスワード変更メール送信 ──────────────────────────────
   async function handlePasswordChange() {
-    const email = user?.email;
+    await refreshUser();
+    const email = useAuthStore.getState().user?.email;
     if (!email) return;
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) {

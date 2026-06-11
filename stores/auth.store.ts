@@ -8,6 +8,7 @@ interface AuthState {
   user:     User | null;
   isLoading: boolean;
   setSession:    (session: Session | null) => void;
+  refreshUser:   () => Promise<void>;
   signOut:       () => Promise<void>;
   /**
    * 現在ログイン中のユーザーのアカウントとデータを完全削除する。
@@ -30,6 +31,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setSession: (session) =>
     set({ session, user: session?.user ?? null, isLoading: false }),
+
+  refreshUser: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) set({ user });
+  },
 
   signOut: async () => {
     await supabase.auth.signOut();
