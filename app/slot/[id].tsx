@@ -24,7 +24,7 @@ import type { Database }                              from '@/types/database';
 
 type Slot = Database['public']['Tables']['timetable_slots']['Row'];
 
-const TODAY = localYMD(new Date());
+function getToday() { return localYMD(new Date()); }
 
 
 export default function SlotDetailScreen() {
@@ -108,7 +108,7 @@ export default function SlotDetailScreen() {
 
   // ── 出席追加モーダル ────────────────────────────────────────
   const [attVisible,   setAttVisible]   = useState(false);
-  const [attDate,      setAttDate]      = useState(TODAY);
+  const [attDate,      setAttDate]      = useState(getToday());
   const [attStatus,    setAttStatus]    = useState<AttendanceStatus>('present');
   const [attNote,      setAttNote]      = useState('');
   const [attSaving,    setAttSaving]    = useState(false);
@@ -128,7 +128,7 @@ export default function SlotDetailScreen() {
 
   // ── イベント追加モーダル ────────────────────────────────────
   const [evtVisible,  setEvtVisible]  = useState(false);
-  const [evtDate,     setEvtDate]     = useState(TODAY);
+  const [evtDate,     setEvtDate]     = useState(getToday());
   const [evtType,     setEvtType]     = useState<EventType>('cancel');
   const [evtTitle,    setEvtTitle]    = useState('');
   const [evtNote,     setEvtNote]     = useState('');
@@ -224,7 +224,7 @@ export default function SlotDetailScreen() {
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
 
         {/* ── 出欠管理 ── */}
-        <Section title="出欠管理" action={{ label: '＋ 記録', onPress: () => { setAttDate(TODAY); setAttStatus('present'); setAttVisible(true); } }}>
+        <Section title="出欠管理" action={{ label: '＋ 記録', onPress: () => { setAttDate(getToday()); setAttStatus('present'); setAttVisible(true); } }}>
 
           {/* 統計カード */}
           {stats && stats.total > 0 && (
@@ -298,7 +298,7 @@ export default function SlotDetailScreen() {
         </Section>
 
         {/* ── 休講・補講 ── */}
-        <Section title="休講・補講" action={{ label: '＋ 追加', onPress: () => { setEvtDate(TODAY); setEvtType('cancel'); setEvtTitle(''); setEvtNote(''); setEvtVisible(true); } }}>
+        <Section title="休講・補講" action={{ label: '＋ 追加', onPress: () => { setEvtDate(getToday()); setEvtType('cancel'); setEvtTitle(''); setEvtNote(''); setEvtVisible(true); } }}>
           {eventsLoading && <ActivityIndicator color={COLORS.primary} />}
           {!eventsLoading && events.length === 0 && (
             <Text style={styles.emptyHint}>休講・補講・テスト等を登録できます</Text>
