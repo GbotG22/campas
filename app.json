@@ -42,9 +42,13 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
-      ["expo-calendar", {
-        "calendarPermission": "スケジュール画面にiPhoneのカレンダー予定を表示するために使用します。"
-      }]
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "スケジュール画面にiPhoneのカレンダー予定を表示するために使用します。"
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
