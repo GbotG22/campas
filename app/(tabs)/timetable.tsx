@@ -43,20 +43,21 @@ export default function TimetableScreen() {
     useTimetable(semesterFilter);
   const { getForDate, getStats, record } = useAttendance();
 
+  // フォーカス時に today を再計算する（日付跨ぎ対策）
+  const [, forceUpdate] = useState(0);
+
   // スロット詳細（/slot/[id]）から戻ったとき等、フォーカス取得時に最新データへ更新
   useFocusEffect(
     useCallback(() => {
       refresh();
+      forceUpdate(n => n + 1);
     }, [refresh]),
   );
 
-  // ── 日付 ─────────────────────────────────────────────────────
-  const today    = useMemo(() => new Date(), []);
-  const todayStr = useMemo(() => localYMD(today), [today]);
-  const todayDow = useMemo(() => {
-    const d = today.getDay();
-    return d === 0 || d === 6 ? -1 : d - 1; // 月=0〜金=4
-  }, [today]);
+  // ── 日付（毎レンダーで再計算） ───────────────────────────────
+  const today    = new Date();
+  const todayStr = localYMD(today);
+  const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
 
   // ── アクティブ時限設定 ─────────────────────────────────────
   const activePeriods = useMemo(

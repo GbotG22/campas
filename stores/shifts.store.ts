@@ -8,6 +8,7 @@ import {
   rescheduleAllShiftNotifications,
 } from '@/lib/notifications';
 import { useAuthStore } from '@/stores/auth.store';
+import { localYMD }    from '@/lib/dateUtils';
 import type { Database } from '@/types/database';
 
 type Shift         = Database['public']['Tables']['shifts']['Row'];
@@ -190,7 +191,7 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
   getForDate: (date) =>
     get().shifts.filter(s => s.date === date),
   getNextShift: () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localYMD(new Date());
     const upcoming = get().shifts.filter(s => s.date >= today);
     return upcoming.length > 0 ? upcoming[0] : null;
   },
