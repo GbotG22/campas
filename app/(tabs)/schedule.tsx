@@ -270,7 +270,7 @@ export default function ScheduleScreen() {
     }
 
     const aiItems: AIScheduleItem[] = allItems
-      .filter(i => i.source !== 'google') // アプリ内予定のみ
+      .filter(i => i.source === 'event' || i.source === 'shift') // アプリ内予定のみ（外部カレンダーは除外）
       .map(i => {
         const cfg = i.type === 'shift'
           ? { label: 'バイト' }

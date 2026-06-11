@@ -183,9 +183,9 @@ export async function scheduleSubscriptionNotification(sub: Subscription) {
     const now  = new Date();
 
     const triggers = [
-      { id: `sub_${sub.id}_7d`, days: 7, enabled: settings.sub7d,  label: '7日後' },
-      { id: `sub_${sub.id}_3d`, days: 3, enabled: settings.sub3d,  label: '3日後' },
-      { id: `sub_${sub.id}_1d`, days: 1, enabled: settings.sub1d,  label: '明日' },
+      { id: `sub_${sub.id}_7d`, days: 7, enabled: settings.sub7d,  label: '7日後に更新されます' },
+      { id: `sub_${sub.id}_3d`, days: 3, enabled: settings.sub3d,  label: '3日後に更新されます' },
+      { id: `sub_${sub.id}_1d`, days: 1, enabled: settings.sub1d,  label: '明日更新されます' },
     ];
 
     for (const t of triggers) {
@@ -199,7 +199,7 @@ export async function scheduleSubscriptionNotification(sub: Subscription) {
           identifier: t.id,
           content: {
             title: '🔔 サブスク更新のお知らせ',
-            body:  `${sub.service_name}が${t.label}に¥${sub.amount.toLocaleString()}更新されます`,
+            body:  `${sub.service_name}が${t.label}`,
             sound: true,
             categoryIdentifier: SUBSCRIPTION_CATEGORY,
             data: { subscriptionId: sub.id, type: 'renewal' },
@@ -511,7 +511,7 @@ export async function scheduleFixedExpenseNotification(fe: FixedExpense): Promis
       identifier: `fixed_${fe.id}_1d`,
       content: {
         title: '🏠 固定費の支払い明日です',
-        body:  `${fe.name}（¥${fe.amount.toLocaleString()}）の支払日は明日です`,
+        body:  `${fe.name}の支払日は明日です`,
         sound: true,
         data:  { fixedExpenseId: fe.id, type: 'fixed_payment' },
       },

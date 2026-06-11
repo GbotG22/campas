@@ -38,7 +38,7 @@
  * ─────────────────────────────────────────────────────────────────────
  */
 import { useCallback, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
@@ -53,7 +53,7 @@ WebBrowser.maybeCompleteAuthSession();
 export const IS_EXPO_GO =
   Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-// ── AsyncStorage キー ──────────────────────────────────────────────
+// ── SecureStore キー（トークンは端末のセキュアなキーチェーンに保存）──
 const KEY_TOKEN  = 'gcal_access_token';
 const KEY_EXPIRY = 'gcal_token_expiry';
 
@@ -165,8 +165,8 @@ export function useGoogleCalendar() {
     (async () => {
       try {
         const [token, expStr] = await Promise.all([
-          AsyncStorage.getItem(KEY_TOKEN),
-          AsyncStorage.getItem(KEY_EXPIRY),
+          SecureStore.getItemAsync(KEY_TOKEN),
+          SecureStore.getItemAsync(KEY_EXPIRY),
         ]);
         console.log('[GCal] ストレージ確認 → token:', token ? '存在' : 'なし', '期限:', expStr);
         if (token && expStr && Date.now() < parseInt(expStr, 10)) {
@@ -226,11 +226,11 @@ export function useGoogleCalendar() {
 
     const expiry = Date.now() + expSecs * 1000;
     Promise.all([
-      AsyncStorage.setItem(KEY_TOKEN,  token),
-      AsyncStorage.setItem(KEY_EXPIRY, String(expiry)),
+      SecureStore.setItemAsync(KEY_TOKEN,  token),
+      SecureStore.setItemAsync(KEY_EXPIRY, String(expiry)),
     ])
-      .then(() => console.log('[GCal] トークンをストレージに保存しました'))
-      .catch(e => console.error('[GCal] ストレージ保存エラー:', e));
+      .then(() => console.log('[GCal] トークンをSecureStoreに保存しました'))
+      .catch(e => console.error('[GCal] SecureStore保存エラー:', e));
 
     setAccessToken(token);
     fetchEvents(token);
@@ -298,8 +298,8 @@ export function useGoogleCalendar() {
   // ── 内部ヘルパー ──────────────────────────────────────────────
   async function clearToken() {
     await Promise.all([
-      AsyncStorage.removeItem(KEY_TOKEN),
-      AsyncStorage.removeItem(KEY_EXPIRY),
+      SecureStore.deleteItemAsync(KEY_TOKEN),
+      SecureStore.deleteItemAsync(KEY_EXPIRY),
     ]).catch(e => console.error('[GCal] clearToken エラー:', e));
     setAccessToken(null);
     setGCalEvents([]);

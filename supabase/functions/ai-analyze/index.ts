@@ -1,10 +1,29 @@
 import { serve }        from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
-const MODEL         = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS    = 400;
+const ANTHROPIC_API  = 'https://api.anthropic.com/v1/messages';
+const MODEL          = 'claude-haiku-4-5-20251001';
+const MAX_TOKENS     = 400;
 const MAX_PROMPT_LEN = 5000;
+
+// ── ユーザーごとのレート制限 ──────────────────────────────────────────────────
+// メモリキャッシュでシンプルに実装（インスタンス再起動でリセットされるが
+// コスト爆発を抑制するには十分）。より厳密には DB や KV ストアを使う。
+const RATE_LIMIT_MAX    = 3;   // 同一ユーザーが呼べる最大回数
+const RATE_LIMIT_WINDOW = 5 * 60 * 1000; // 5分間（ミリ秒）
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(uid: string): boolean {
+  const now   = Date.now();
+  const entry = rateLimitMap.get(uid);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(uid, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 // モバイルアプリは Origin ヘッダーを送らないため Access-Control-Allow-Origin: *
@@ -52,6 +71,12 @@ serve(async (req) => {
   }
 
   console.log('[ai-analyze] 認証OK uid:', user.id);
+
+  // ── レート制限チェック ─────────────────────────────────────────────────────
+  if (!checkRateLimit(user.id)) {
+    console.warn('[ai-analyze] レート制限超過 uid:', user.id);
+    return json({ error: 'rate_limit_error' }, 429);
+  }
 
   try {
     // ── リクエストボディ解析 ────────────────────────────────────────────
