@@ -26,11 +26,13 @@ export function timeToMinutes(t: string): number {
   return h * 60 + m;
 }
 export function calcWage(hourlyWage: number, startTime: string, endTime: string, breakMinutes: number): number {
-  const workMin = timeToMinutes(endTime) - timeToMinutes(startTime) - breakMinutes;
-  return Math.floor(hourlyWage * Math.max(0, workMin) / 60);
+  return Math.floor(hourlyWage * calcWorkMinutes(startTime, endTime, breakMinutes) / 60);
 }
 export function calcWorkMinutes(startTime: string, endTime: string, breakMinutes: number): number {
-  return Math.max(0, timeToMinutes(endTime) - timeToMinutes(startTime) - breakMinutes);
+  let end = timeToMinutes(endTime);
+  const start = timeToMinutes(startTime);
+  if (end <= start) end += 24 * 60; // 深夜またぎ（例 22:00〜翌2:00）
+  return Math.max(0, end - start - breakMinutes);
 }
 export function formatMinutes(min: number): string {
   const h = Math.floor(min / 60);

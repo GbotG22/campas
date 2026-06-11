@@ -27,6 +27,7 @@ export default function SettingsScreen() {
   const [nameInput,   setNameInput]   = useState('');
   const [nameEditing, setNameEditing] = useState(false);
   const [nameSaving,  setNameSaving]  = useState(false);
+  const [isDeleting,  setIsDeleting]  = useState(false);
 
   useEffect(() => {
     setNameInput(displayName ?? '');
@@ -139,13 +140,15 @@ export default function SettingsScreen() {
   }
 
   async function executeDeleteAccount() {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       await deleteAccount();
       // deleteAccount() 内で signOut → setSession(null) → _layout.tsx がログイン画面へ自動遷移
     } catch (e: unknown) {
+      setIsDeleting(false);
       const msg = e instanceof Error ? e.message : '不明なエラー';
 
-      // DB 関数が未実行の場合のヒント
       const hint = msg.includes('Could not find the function') || msg.includes('does not exist')
         ? '\n\n📌 設定手順：\nSupabase Dashboard → SQL Editor で\n「007_delete_user_function.sql」を実行してください。'
         : '';

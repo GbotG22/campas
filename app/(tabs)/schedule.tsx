@@ -41,8 +41,8 @@ import { usePremium } from '@/hooks/usePremium';
 import type { EventType } from '@/types/database';
 import { localYMD } from '@/lib/dateUtils';
 
-const TODAY    = localYMD(new Date());
-const TOMORROW = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return localYMD(d); })();
+function getToday()    { return localYMD(new Date()); }
+function getTomorrow() { const d = new Date(); d.setDate(d.getDate() + 1); return localYMD(d); }
 
 const GCAL_COLOR   = '#4285F4'; // Google ブルー
 const NATIVE_COLOR = '#34C759'; // Apple グリーン
@@ -72,8 +72,8 @@ const TYPE_GROUPS: { label: string; types: (EventType | 'shift')[] }[] = [
 
 // 日付ラベル
 function dateSectionLabel(date: string): string {
-  if (date === TODAY)    return `今日 · ${fmtShort(date)}`;
-  if (date === TOMORROW) return `明日 · ${fmtShort(date)}`;
+  if (date === getToday())    return `今日 · ${fmtShort(date)}`;
+  if (date === getTomorrow()) return `明日 · ${fmtShort(date)}`;
   return fmtShort(date);
 }
 function fmtShort(date: string): string {
@@ -108,7 +108,7 @@ export default function ScheduleScreen() {
   const todayDate = new Date();
   const [calYear,  setCalYear]  = useState(todayDate.getFullYear());
   const [calMonth, setCalMonth] = useState(todayDate.getMonth() + 1);
-  const [selectedDate, setSelectedDate] = useState<string | null>(TODAY);
+  const [selectedDate, setSelectedDate] = useState<string | null>(getToday());
 
   function prevMonth() {
     if (calMonth === 1) { setCalYear(y => y-1); setCalMonth(12); }
@@ -236,12 +236,12 @@ export default function ScheduleScreen() {
   const [shiftMode,      setShiftMode]      = useState(false);
   const [evType,         setEvType]         = useState<EventType>('assignment');
   const [evTitle,        setEvTitle]        = useState('');
-  const [evDate,         setEvDate]         = useState(TODAY);
+  const [evDate,         setEvDate]         = useState(getToday());
   const [evTime,         setEvTime]         = useState('');
   const [evEndTime,      setEvEndTime]      = useState('');
   const [evDesc,         setEvDesc]         = useState('');
   const [shiftWorkplace, setShiftWorkplace] = useState('');
-  const [shiftDate,      setShiftDate]      = useState(TODAY);
+  const [shiftDate,      setShiftDate]      = useState(getToday());
   const [shiftStart,     setShiftStart]     = useState('');
   const [shiftEnd,       setShiftEnd]       = useState('');
   const [shiftBreak,     setShiftBreak]     = useState('0');
@@ -249,7 +249,7 @@ export default function ScheduleScreen() {
   // 追加モードで開く（選択日を自動セット）
   function openAdd(type: EventType | 'shift' = 'assignment') {
     setEditingItem(null);
-    const date = selectedDate ?? TODAY;
+    const date = selectedDate ?? getToday();
     if (type === 'shift') {
       setShiftMode(true);
       setShiftWorkplace(workplaces[0]?.id ?? '');
@@ -536,7 +536,7 @@ export default function ScheduleScreen() {
         ) : (
           <>
             <Text style={styles.filterBarAll}>すべての予定 ({allItems.length}件)</Text>
-            <TouchableOpacity style={styles.clearDateBtn} onPress={() => setSelectedDate(TODAY)}>
+            <TouchableOpacity style={styles.clearDateBtn} onPress={() => setSelectedDate(getToday())}>
               <Ionicons name="calendar-outline" size={13} color={COLORS.primary} />
               <Text style={styles.backToCalText}>今日に戻る</Text>
             </TouchableOpacity>

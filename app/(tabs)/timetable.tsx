@@ -138,7 +138,7 @@ export default function TimetableScreen() {
       day_of_week:              targetCell.day,
       period:                   targetCell.period,
       google_calendar_event_id: null,
-      semester:                 null,
+      semester:                 activeSemester?.id ?? null,
     });
     setSaving(false);
     if (error) { Alert.alert('エラー', '追加できませんでした'); return; }
@@ -189,7 +189,7 @@ export default function TimetableScreen() {
     setSaving(true);
     for (const key of copySelected) {
       const [d, p] = key.split('_').map(Number);
-      await addSlot({ ...copyData, day_of_week: d, period: p, google_calendar_event_id: null, semester: null });
+      await addSlot({ ...copyData, day_of_week: d, period: p, google_calendar_event_id: null, semester: activeSemester?.id ?? null });
     }
     setSaving(false);
     rescheduleAllClassNotifications(slots, periodConfig).catch(() => {});
