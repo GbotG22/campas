@@ -144,7 +144,7 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
     // purchase
     // ────────────────────────────────────────────────────────
     purchase: async (pkg, entitlement) => {
-      if (IS_EXPO_GO || !IS_REVENUECAT_CONFIGURED || pkg === null) {
+      if (IS_EXPO_GO || !IS_REVENUECAT_CONFIGURED) {
         // Expo Go / フォールバック: 対応する AsyncStorage フラグを立てる
         try {
           const key = entitlement === 'ai_plus' ? DEV_AI_PLUS_KEY : DEV_PREMIUM_KEY;
@@ -159,6 +159,8 @@ export const useEntitlementStore = create<EntitlementState>((set) => {
           return 'error';
         }
       }
+      // RevenueCat 構成済みだがオファリング取得失敗の場合はエラーとして扱う（付与しない）
+      if (pkg === null) return 'error';
 
       // Dev Build / 本番: RevenueCat で購入
       // 購入後の CustomerInfo から両エンタイトルメントを更新する

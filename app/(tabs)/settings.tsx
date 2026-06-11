@@ -317,7 +317,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── セクション：テスト用解除（RevenueCat 未構成時のみ表示） ── */}
-        {!IS_REVENUECAT_CONFIGURED && (
+        {__DEV__ && !IS_REVENUECAT_CONFIGURED && (
           <>
             <SectionLabel label="⚙️ 開発テスト（RC未設定時のみ表示）" />
             <View style={styles.menuCard}>

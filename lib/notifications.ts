@@ -74,6 +74,18 @@ export async function registerNotificationCategories() {
   } catch { /* ignore */ }
 }
 
+// ── 権限確認（リクエストなし） ────────────────────────────
+async function hasNotificationPermission(): Promise<boolean> {
+  try {
+    const N = getNotifications();
+    if (!N) return false;
+    const { status } = await N.getPermissionsAsync();
+    return status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
 // ── 権限リクエスト ─────────────────────────────────────────
 export async function requestNotificationPermission(): Promise<boolean> {
   try {
@@ -136,6 +148,7 @@ const KNOWN_PREFIXES = ['ev_', 'shift_', 'sub_', 'fixed_', 'payday_', 'class_'];
 
 export async function rescheduleAllNotifications(assignments: Assignment[]) {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const scheduled = await N.getAllScheduledNotificationsAsync();
@@ -234,6 +247,7 @@ export async function rescheduleSubscriptionNotifications(
   subscriptions: Subscription[],
 ) {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const scheduled = await N.getAllScheduledNotificationsAsync();
@@ -317,6 +331,7 @@ export async function cancelEventNotifications(id: string): Promise<void> {
 
 export async function rescheduleAllEventNotifications(events: AppEvent[]): Promise<void> {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const scheduled = await N.getAllScheduledNotificationsAsync();
@@ -386,6 +401,7 @@ export async function rescheduleAllShiftNotifications(
   shifts: ShiftNotificationParams[],
 ): Promise<void> {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const scheduled = await N.getAllScheduledNotificationsAsync();
@@ -473,6 +489,7 @@ export async function cancelPaydayNotification(id: string): Promise<void> {
 
 export async function rescheduleAllPaydayNotifications(workplaces: Workplace[]): Promise<void> {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const scheduled = await N.getAllScheduledNotificationsAsync();
@@ -537,6 +554,7 @@ export async function cancelFixedExpenseNotification(id: string): Promise<void> 
 
 export async function rescheduleAllFixedExpenseNotifications(fixedExpenses: FixedExpense[]): Promise<void> {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const scheduled = await N.getAllScheduledNotificationsAsync();
@@ -610,6 +628,7 @@ export async function rescheduleAllClassNotifications(
   periodConfig: PeriodConfig,
 ): Promise<void> {
   try {
+    if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
     const settings = await getDetailedNotificationSettings();

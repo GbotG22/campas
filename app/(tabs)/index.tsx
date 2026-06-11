@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useFocusEffect } from 'expo-router';
 import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS } from '@/constants/theme';
 import MonthCalendar, { CalendarMarker } from '@/components/MonthCalendar';
 import { useAuthStore }        from '@/stores/auth.store';
@@ -21,16 +22,20 @@ import type { Database }       from '@/types/database';
 
 type TimetableSlot = Database['public']['Tables']['timetable_slots']['Row'];
 
-const today    = new Date();
-const todayStr = localYMD(today);
-const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
-
 function getYM(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function fmt(d: Date)   { return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; }
 
 const ATT_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent'];
 
 export default function HomeScreen() {
+  // フォーカス時に today を再計算する（日付跨ぎ対策）
+  const [, forceUpdate] = useState(0);
+  useFocusEffect(useCallback(() => { forceUpdate(n => n + 1); }, []));
+
+  const today    = new Date();
+  const todayStr = localYMD(today);
+  const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
+
   const { user }  = useAuthStore();
   const { displayName } = useProfileStore();
   const { monthlyTotal: subTotal }                          = useSubscriptions();
@@ -49,9 +54,9 @@ export default function HomeScreen() {
   const userName = displayName ?? user?.email?.split('@')[0] ?? '';
 
   // ── カレンダー月制御 ──────────────────────────────────────
-  const [calYear,  setCalYear]  = useState(today.getFullYear());
-  const [calMonth, setCalMonth] = useState(today.getMonth() + 1);
-  const [selDate,  setSelDate]  = useState<string>(todayStr);
+  const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(() => new Date().getMonth() + 1);
+  const [selDate,  setSelDate]  = useState<string>(() => localYMD(new Date()));
 
   function prevMonth() {
     if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
@@ -85,7 +90,7 @@ export default function HomeScreen() {
   const todaySlots = useMemo(() => {
     if (todayDow < 0) return [];
     return slots.filter(s => s.day_of_week === todayDow).sort((a, b) => a.period - b.period);
-  }, [slots]);
+  }, [slots, todayDow]);
 
   // ── 締切（今日 / 明日以降） ───────────────────────────────
   const upcoming          = getUpcoming(7);
