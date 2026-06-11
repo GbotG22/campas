@@ -96,8 +96,7 @@ export async function scheduleAssignmentNotifications(a: Assignment) {
   const N = getNotifications();
   if (!N) return;
 
-  const due = new Date(a.due_date);
-  due.setHours(9, 0, 0, 0);
+  const due = new Date(`${a.due_date}T09:00:00`); // ローカル9時として解釈（UTC解釈を避ける）
   const now = new Date();
 
   const triggers = [
@@ -133,11 +132,19 @@ export async function cancelAssignmentNotifications(id: string) {
   } catch { /* ignore */ }
 }
 
+const KNOWN_PREFIXES = ['ev_', 'shift_', 'sub_', 'fixed_', 'payday_', 'class_'];
+
 export async function rescheduleAllNotifications(assignments: Assignment[]) {
   try {
     const N = getNotifications();
     if (!N) return;
-    await N.cancelAllScheduledNotificationsAsync();
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    // 課題通知のidentifierはprefix無しのUUID形式。他の通知のprefixに合致しないものが課題通知
+    await Promise.all(
+      scheduled
+        .filter(n => !KNOWN_PREFIXES.some(p => n.identifier.startsWith(p)))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
     for (const a of assignments) {
       if (a.status !== 'done') await scheduleAssignmentNotifications(a);
     }

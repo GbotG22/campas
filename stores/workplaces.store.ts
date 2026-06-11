@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
-import { rescheduleAllPaydayNotifications } from '@/lib/notifications';
+import {
+  rescheduleAllPaydayNotifications,
+  schedulePaydayNotification,
+  cancelPaydayNotification,
+} from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Database } from '@/types/database';
@@ -77,6 +81,7 @@ export const useWorkplacesStore = create<WorkplacesState>((set, get) => ({
       const next = [...get().workplaces, data];
       set({ workplaces: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      if (data.is_active) schedulePaydayNotification(data).catch(() => {});
     }
     return error;
   },
@@ -93,6 +98,8 @@ export const useWorkplacesStore = create<WorkplacesState>((set, get) => ({
       const next = get().workplaces.map(w => w.id === id ? data : w);
       set({ workplaces: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      cancelPaydayNotification(id).catch(() => {});
+      if (data.is_active) schedulePaydayNotification(data).catch(() => {});
     }
     return error;
   },
@@ -108,6 +115,7 @@ export const useWorkplacesStore = create<WorkplacesState>((set, get) => ({
       const next = get().workplaces.filter(w => w.id !== id);
       set({ workplaces: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
+      cancelPaydayNotification(id).catch(() => {});
     }
     return error;
   },
