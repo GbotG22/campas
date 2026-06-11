@@ -91,20 +91,22 @@ export function useAI() {
       // 実際のエラー内容は fnError.context（レスポンスボディ）から取得する。
       if (fnError) {
         const ctx    = (fnError as any).context as Record<string, unknown> | undefined;
-        const detail = typeof ctx?.error === 'string'
-          ? ctx.error
-          : JSON.stringify(ctx ?? fnError.message);
+        const detail = typeof ctx?.error === 'string' ? ctx.error : '';
 
         console.error('[AI] Edge Functionエラー context:', ctx, 'message:', fnError.message);
 
         const msg =
-          detail.includes('ANTHROPIC_API_KEY not configured')
-            ? 'APIキーが未設定です（管理者に連絡してください）' :
-          detail.includes('rate_limit_error')
+          detail === 'Unauthorized'
+            ? 'ログインが必要です' :
+          detail === 'rate_limit_error'
             ? 'レート制限中です。しばらく待ってから再試行してください' :
-          detail.includes('overloaded')
+          detail === 'overloaded'
             ? 'Claudeサーバーが混雑しています。少し待ってください' :
-          `AI分析エラー: ${fnError.message}`;
+          detail === 'prompt too long'
+            ? '予定データが多すぎます。期間を絞ってから再試行してください' :
+          detail === 'Service temporarily unavailable'
+            ? 'AIサービスが一時停止中です。しばらく待ってください' :
+          'AI分析中にエラーが発生しました';
 
         setError(msg);
         return;
