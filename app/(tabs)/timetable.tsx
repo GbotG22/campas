@@ -25,7 +25,10 @@ type Slot = Database['public']['Tables']['timetable_slots']['Row'];
 const { width: SCREEN_W } = Dimensions.get('window');
 const PERIOD_COL = 54;
 const CELL_W     = Math.floor((SCREEN_W - PERIOD_COL - 14) / 5);
-const CELL_H     = 82;
+const CELL_H     = 82;               // セル高さの下限（これより小さくはしない）
+const HEADER_ROW_H   = 32;           // 曜日ヘッダー行のおおよその高さ
+const ROW_GAP        = 2;            // row の marginBottom
+const GRID_PAD_BOTTOM = SPACING.md;  // grid の paddingBottom
 
 interface CopyData { subject_name: string; teacher_name: string | null; room: string | null; color: string }
 
@@ -64,6 +67,17 @@ export default function TimetableScreen() {
     () => periodConfig.periods.slice(0, periodConfig.periodCount),
     [periodConfig],
   );
+
+  // ── セル高さを利用可能な高さから動的算出 ───────────────────
+  // 時限数が少ない（4限など）ときに下部が大きく余るのを防ぎ、
+  // 画面の縦いっぱいにセルを広げる。多い場合は CELL_H を保ってスクロール。
+  const [gridH, setGridH] = useState(0);
+  const cellH = useMemo(() => {
+    const count = activePeriods.length || 1;
+    if (gridH <= 0) return CELL_H;
+    const avail = gridH - HEADER_ROW_H - GRID_PAD_BOTTOM - count * ROW_GAP;
+    return Math.max(CELL_H, Math.floor(avail / count));
+  }, [gridH, activePeriods.length]);
 
   // ── 今日の休講・補講 ──────────────────────────────────────
   const [todayEvents, setTodayEvents] = useState<Map<string, ClassEvent>>(new Map());
@@ -264,7 +278,14 @@ export default function TimetableScreen() {
       {isLoading && slots.length === 0 ? (
         <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />
       ) : (
-        <ScrollView style={styles.gridScroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.gridScroll}
+          showsVerticalScrollIndicator={false}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0 && Math.abs(h - gridH) > 0.5) setGridH(h);
+          }}
+        >
           <View style={styles.grid}>
 
             {/* 曜日ヘッダー */}
@@ -303,7 +324,7 @@ export default function TimetableScreen() {
                         styles.cell,
                         {
                           width:           CELL_W,
-                          height:          CELL_H,
+                          height:          cellH,
                           backgroundColor: isCancel
                             ? COLORS.gray100
                             : (slot.color ?? COLORS.primary) + '18',
@@ -348,7 +369,7 @@ export default function TimetableScreen() {
                   ) : (
                     <TouchableOpacity
                       key={di}
-                      style={[styles.cell, styles.emptyCell, { width: CELL_W, height: CELL_H }, di === todayDow && styles.todayCell]}
+                      style={[styles.cell, styles.emptyCell, { width: CELL_W, height: cellH }, di === todayDow && styles.todayCell]}
                       onPress={() => openSheet(di, pt.period)}
                       activeOpacity={0.5}
                     >

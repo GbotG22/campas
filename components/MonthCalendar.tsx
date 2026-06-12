@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { COLORS } from '@/constants/theme';
+import { COLORS, FONT } from '@/constants/theme';
 import { todayYMD } from '@/lib/dateUtils';
 
 export interface CalendarMarker {
@@ -26,6 +26,17 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
 
   // 描画ごとに評価（モジュールレベル定数だと起動時刻で凍結＆UTCずれするため）
   const TODAY = todayYMD();
+
+  // ── セル幅を実測幅から算出（親の余白に依存せず画面幅いっぱいに広げる）──
+  const [gridW, setGridW] = useState(0);
+  const onGridLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && Math.abs(w - gridW) > 0.5) setGridW(w);
+  };
+  // weekRow の左右 paddingHorizontal(4×2=8) を差し引いて 7 等分
+  const cellSize  = gridW > 0 ? (gridW - 8) / 7 : FALLBACK_CELL;
+  // 日付の丸は正方形セル内に収め、上限を設けて大きくなりすぎないように
+  const circle    = Math.min(Math.round(cellSize * 0.74), 38);
 
   // ── カレンダーグリッドを構築 ─────────────────────────────
   const { weeks, daysInMonth } = useMemo(() => {
@@ -59,7 +70,7 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
   const monthStr = `${year}-${String(month).padStart(2, '0')}`;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onGridLayout}>
 
       {/* ── 月ナビゲーション ── */}
       <View style={styles.nav}>
@@ -79,6 +90,7 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
             key={d}
             style={[
               styles.weekHeader,
+              { width: cellSize },
               i === 5 && styles.satHeader,
               i === 6 && styles.sunHeader,
             ]}
@@ -90,7 +102,7 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
       {weeks.map((week, wi) => (
         <View key={wi} style={styles.weekRow}>
           {week.map((day, di) => {
-            if (!day) return <View key={di} style={styles.dayCell} />;
+            if (!day) return <View key={di} style={[styles.dayCell, { width: cellSize }]} />;
 
             const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
             const isToday    = dateStr === TODAY;
@@ -102,12 +114,13 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
             return (
               <TouchableOpacity
                 key={di}
-                style={styles.dayCell}
+                style={[styles.dayCell, { width: cellSize }]}
                 onPress={() => onSelectDate(dateStr)}
                 activeOpacity={0.7}
               >
                 <View style={[
                   styles.dayNum,
+                  { width: circle, height: circle, borderRadius: circle / 2 },
                   isToday    && styles.todayCircle,
                   isSelected && !isToday && styles.selectedCircle,
                 ]}>
@@ -137,7 +150,8 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
   );
 }
 
-const CELL_SIZE = 40;
+// 実測幅が取れるまでの初期フォールバック（次フレームで実測値に置換される）
+const FALLBACK_CELL = 44;
 
 const styles = StyleSheet.create({
   container: { backgroundColor: COLORS.white, paddingBottom: 4 },
@@ -146,18 +160,18 @@ const styles = StyleSheet.create({
   nav:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 10 },
   navBtn:   { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   navArrow: { fontSize: 24, color: COLORS.primary, fontWeight: '700' },
-  navTitle: { fontSize: 16, fontWeight: '800', color: COLORS.gray900 },
+  navTitle: { fontSize: FONT.subhead, fontWeight: '800', color: COLORS.gray900 },
 
   // 曜日・週
   weekRow:    { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 4 },
-  weekHeader: { width: CELL_SIZE, textAlign: 'center', fontSize: 11, fontWeight: '700', color: COLORS.gray400, paddingVertical: 4 },
+  weekHeader: { textAlign: 'center', fontSize: FONT.caption, fontWeight: '700', color: COLORS.gray400, paddingVertical: 4 },
   satHeader:  { color: '#3B82F6' },
   sunHeader:  { color: '#EF4444' },
 
-  // 日付セル
-  dayCell: { width: CELL_SIZE, alignItems: 'center', paddingVertical: 2 },
-  dayNum:  { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  dayText: { fontSize: 13, color: COLORS.gray900, fontWeight: '500' },
+  // 日付セル（width / 丸サイズは描画時にインライン指定）
+  dayCell: { alignItems: 'center', paddingVertical: 3 },
+  dayNum:  { alignItems: 'center', justifyContent: 'center' },
+  dayText: { fontSize: FONT.body, color: COLORS.gray900, fontWeight: '500' },
 
   todayCircle:   { backgroundColor: COLORS.primary },
   todayText:     { color: '#fff', fontWeight: '800' },
