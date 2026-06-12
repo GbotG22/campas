@@ -640,6 +640,7 @@ export type Database = {
           user_id:        string;
           category:       '不具合報告' | '改善要望' | '新機能の提案' | 'その他';
           message:        string;
+          status:         'open' | 'in_progress' | 'resolved' | 'wont_fix';
           screenshot_url: string | null;
           app_version:    string | null;
           created_at:     string;
@@ -649,6 +650,7 @@ export type Database = {
           user_id:        string;
           category:       '不具合報告' | '改善要望' | '新機能の提案' | 'その他';
           message:        string;
+          status?:        'open' | 'in_progress' | 'resolved' | 'wont_fix';
           screenshot_url?: string | null;
           app_version?:   string | null;
           created_at?:    string;
@@ -658,6 +660,7 @@ export type Database = {
           user_id?:       string;
           category?:      '不具合報告' | '改善要望' | '新機能の提案' | 'その他';
           message?:       string;
+          status?:        'open' | 'in_progress' | 'resolved' | 'wont_fix';
           screenshot_url?: string | null;
           app_version?:   string | null;
           created_at?:    string;
