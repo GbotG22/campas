@@ -79,6 +79,44 @@ export function useClassEvents(slotId?: string) {
   return { events, isLoading, addEvent, updateEvent, deleteEvent, refresh: fetch };
 }
 
+/**
+ * 指定日の休講・補講を複数スロット横断で購読し、休講のトグルもできるフック。
+ * ホーム画面「今日の授業」で使用。class_events を単一の真実とすることで、
+ * 時間割画面と表示が常に一致する。
+ */
+export function useTodayClassEvents(slotIds: string[], date: string) {
+  const { user } = useAuthStore();
+  const [todayEvents, setTodayEvents] = useState<Map<string, ClassEvent>>(new Map());
+
+  // slotIds の同一性を安定させるためのキー
+  const idsKey = slotIds.join(',');
+
+  const refresh = useCallback(() => {
+    if (!user || !slotIds.length) { setTodayEvents(new Map()); return; }
+    fetchTodayEvents(user.id, slotIds, date).then(setTodayEvents);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, idsKey, date]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  /** 休講のオン/オフを切り替える（補講が登録済みなら置き換える） */
+  const toggleCancel = async (slotId: string) => {
+    if (!user) return;
+    const existing = todayEvents.get(slotId);
+    if (existing?.event_type === 'cancel') {
+      await supabase.from('class_events').delete().eq('id', existing.id);
+    } else {
+      if (existing) await supabase.from('class_events').delete().eq('id', existing.id);
+      await supabase.from('class_events').insert({
+        user_id: user.id, slot_id: slotId, date, event_type: 'cancel', title: '休講',
+      });
+    }
+    refresh();
+  };
+
+  return { todayEvents, toggleCancel, refresh };
+}
+
 /** 今日の休講・補講を全スロット横断で取得（時間割グリッド用） */
 export async function fetchTodayEvents(
   userId: string,

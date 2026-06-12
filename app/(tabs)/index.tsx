@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS } from '@/constants/theme';
 import MonthCalendar, { CalendarMarker } from '@/components/MonthCalendar';
-import { useAuthStore }        from '@/stores/auth.store';
 import { useProfileStore }     from '@/stores/profile.store';
 import { localYMD }            from '@/lib/dateUtils';
 import { useSubscriptions }    from '@/hooks/useSubscriptions';
@@ -16,7 +15,7 @@ import { useIncomes }          from '@/hooks/useIncomes';
 import { useTimetable }        from '@/hooks/useTimetable';
 import { useExpenses }         from '@/hooks/useExpenses';
 import { useAttendance, ATT_CONFIG } from '@/hooks/useAttendance';
-import type { AttendanceStatus } from '@/hooks/useAttendance';
+import { useTodayClassEvents } from '@/hooks/useClassEvents';
 import { useNativeCalendar } from '@/hooks/useNativeCalendar';
 import type { Database }       from '@/types/database';
 
@@ -25,7 +24,13 @@ type TimetableSlot = Database['public']['Tables']['timetable_slots']['Row'];
 function getYM(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function fmt(d: Date)   { return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; }
 
-const ATT_STATUSES: AttendanceStatus[] = ['present', 'late', 'absent'];
+// 今日の授業の操作ボタン: 出席 / 欠席 / 休講
+// 出席・欠席は attendance_records、休講は class_events(cancel) に記録する。
+const ATT_BUTTONS = [
+  { key: 'present', label: '出席', color: ATT_CONFIG.present.color },
+  { key: 'absent',  label: '欠席', color: ATT_CONFIG.absent.color },
+  { key: 'cancel',  label: '休講', color: COLORS.gray500 },
+] as const;
 
 export default function HomeScreen() {
   // フォーカス時に today を再計算する（日付跨ぎ対策）
@@ -36,7 +41,6 @@ export default function HomeScreen() {
   const todayStr = localYMD(today);
   const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
 
-  const { user }  = useAuthStore();
   const { displayName } = useProfileStore();
   const { monthlyTotal: subTotal }                          = useSubscriptions();
   const { events, getForDate: getEvents, getUpcoming, toggleDone } = useEvents();
@@ -44,14 +48,14 @@ export default function HomeScreen() {
   const { getMonthlyTotal }                                 = useIncomes();
   const { slots }                                           = useTimetable();
   const { expenses }                                        = useExpenses();
-  const { record: recordAttendance, getForDate: getAttendance } = useAttendance();
+  const { record: recordAttendance, deleteRecord, getForDate: getAttendance } = useAttendance();
   const { nativeEvents, isConnected: nativeConnected } = useNativeCalendar();
 
   const hour     = today.getHours();
   const greeting = hour < 10 ? 'おはようございます' : hour < 18 ? 'こんにちは' : 'お疲れ様です';
 
-  // 表示名: displayName → メール@前 の順でフォールバック
-  const userName = displayName ?? user?.email?.split('@')[0] ?? '';
+  // 表示名: 設定済みの表示名のみ（メールアドレスは表示しない）
+  const userName = displayName ?? '';
 
   // ── カレンダー月制御 ──────────────────────────────────────
   const [calYear,  setCalYear]  = useState(() => new Date().getFullYear());
@@ -91,6 +95,10 @@ export default function HomeScreen() {
     if (todayDow < 0) return [];
     return slots.filter(s => s.day_of_week === todayDow).sort((a, b) => a.period - b.period);
   }, [slots, todayDow]);
+
+  // 今日の休講・補講（時間割で登録されたもの）を授業枠に紐づけて表示する
+  const todaySlotIds = useMemo(() => todaySlots.map(s => s.id), [todaySlots]);
+  const { todayEvents: todayClassEvents, toggleCancel } = useTodayClassEvents(todaySlotIds, todayStr);
 
   // ── 締切（今日 / 明日以降） ───────────────────────────────
   const upcoming          = getUpcoming(7);
@@ -240,45 +248,69 @@ export default function HomeScreen() {
             <SectionHeader title="今日の授業" />
             {todaySlots.map(s => {
               const currentStatus = getAttendance(s.id, todayStr);
+              const classEvt = todayClassEvents.get(s.id);
+              const isCancel = classEvt?.event_type === 'cancel';
+              const isMakeup = classEvt?.event_type === 'makeup';
+              // 休講中は出席状況を表示しない（授業自体が無いため）
+              const accent = isCancel ? COLORS.gray400 : (s.color ?? COLORS.primary);
               return (
                 <View key={s.id} style={styles.slotCard}>
                   {/* 授業情報 */}
-                  <View style={[styles.eventRow, { borderLeftColor: s.color ?? COLORS.primary, marginBottom: 0 }]}>
-                    <Ionicons name="book-outline" size={16} color={s.color ?? COLORS.primary} style={styles.eventIcon} />
+                  <View style={[styles.eventRow, { borderLeftColor: accent, marginBottom: 0 }]}>
+                    <Ionicons name="book-outline" size={16} color={accent} style={styles.eventIcon} />
                     <View style={styles.eventBody}>
-                      <Text style={styles.eventTitle}>{s.subject_name}</Text>
+                      <Text style={[styles.eventTitle, isCancel && styles.cancelledText]}>{s.subject_name}</Text>
                       <Text style={styles.eventMeta}>
                         {s.period}限{s.room ? `　${s.room}` : ''}
                       </Text>
                     </View>
-                    {/* 出席状況バッジ */}
-                    {currentStatus && (
+                    {/* 休講・補講バッジ（最優先）→ なければ出席状況バッジ */}
+                    {isCancel ? (
+                      <View style={[styles.attStatusBadge, { backgroundColor: COLORS.gray100 }]}>
+                        <Text style={[styles.attStatusText, { color: COLORS.gray500 }]}>休講</Text>
+                      </View>
+                    ) : isMakeup ? (
+                      <View style={[styles.attStatusBadge, { backgroundColor: COLORS.successLight }]}>
+                        <Text style={[styles.attStatusText, { color: COLORS.success }]}>補講</Text>
+                      </View>
+                    ) : currentStatus ? (
                       <View style={[styles.attStatusBadge, { backgroundColor: ATT_CONFIG[currentStatus].bg }]}>
                         <Text style={[styles.attStatusText, { color: ATT_CONFIG[currentStatus].color }]}>
                           {ATT_CONFIG[currentStatus].label}
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
 
-                  {/* 出席ボタン行 */}
+                  {/* 操作ボタン行: 出席 / 欠席 / 休講 */}
                   <View style={styles.attBtnRow}>
-                    {ATT_STATUSES.map(status => {
-                      const cfg      = ATT_CONFIG[status];
-                      const isActive = currentStatus === status;
+                    {ATT_BUTTONS.map(btn => {
+                      const isActive =
+                        btn.key === 'cancel' ? isCancel : !isCancel && currentStatus === btn.key;
+                      const onPress = async () => {
+                        if (btn.key === 'cancel') {
+                          // 休講にする場合、その日の出欠記録は消す
+                          if (currentStatus) await deleteRecord(s.id, todayStr);
+                          await toggleCancel(s.id);
+                        } else {
+                          // 出席/欠席にする場合、休講が付いていたら解除する
+                          if (isCancel) await toggleCancel(s.id);
+                          recordAttendance(s.id, todayStr, btn.key);
+                        }
+                      };
                       return (
                         <TouchableOpacity
-                          key={status}
+                          key={btn.key}
                           style={[
                             styles.attBtn,
-                            { borderColor: cfg.color },
-                            isActive && { backgroundColor: cfg.color },
+                            { borderColor: btn.color },
+                            isActive && { backgroundColor: btn.color },
                           ]}
-                          onPress={() => recordAttendance(s.id, todayStr, status)}
+                          onPress={onPress}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.attBtnText, { color: isActive ? '#fff' : cfg.color }]}>
-                            {cfg.label}
+                          <Text style={[styles.attBtnText, { color: isActive ? '#fff' : btn.color }]}>
+                            {btn.label}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -482,6 +514,7 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: 14, fontWeight: '600', color: COLORS.gray900 },
   eventMeta:  { fontSize: 13, color: COLORS.gray400, marginTop: 2 },
   doneText:   { textDecorationLine: 'line-through', color: COLORS.gray400 },
+  cancelledText: { textDecorationLine: 'line-through', color: COLORS.gray400 },
   typeBadge:  { borderRadius: RADIUS.sm, paddingHorizontal: 7, paddingVertical: 3 },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },
 
