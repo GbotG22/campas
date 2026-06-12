@@ -643,6 +643,8 @@ export type Database = {
           status:         'open' | 'in_progress' | 'resolved' | 'wont_fix';
           screenshot_url: string | null;
           app_version:    string | null;
+          reported_in_build: number | null;
+          resolved_in_build: number | null;
           created_at:     string;
         };
         Insert: {
@@ -653,6 +655,8 @@ export type Database = {
           status?:        'open' | 'in_progress' | 'resolved' | 'wont_fix';
           screenshot_url?: string | null;
           app_version?:   string | null;
+          reported_in_build?: number | null;
+          resolved_in_build?: number | null;
           created_at?:    string;
         };
         Update: {
@@ -663,6 +667,8 @@ export type Database = {
           status?:        'open' | 'in_progress' | 'resolved' | 'wont_fix';
           screenshot_url?: string | null;
           app_version?:   string | null;
+          reported_in_build?: number | null;
+          resolved_in_build?: number | null;
           created_at?:    string;
         };
         Relationships: [];

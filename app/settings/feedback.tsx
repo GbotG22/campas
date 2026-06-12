@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import Constants from 'expo-constants';
+import * as Application from 'expo-application';
 
 import { COLORS, RADIUS, SHADOW, SPACING } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +32,15 @@ const CATEGORIES: { value: Category; icon: keyof typeof Ionicons.glyphMap; color
 
 const APP_VERSION: string =
   (Constants.expoConfig?.version as string | undefined) ?? '1.0.0';
+
+// CFBundleVersion（iOS）/ versionCode（Android）= Build番号。
+// Expo Go や取得失敗時は null（数値化できないものは null 扱い）。
+function getBuildNumber(): number | null {
+  const raw = Application.nativeBuildVersion; // 例: "47"
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
 
 // ─────────────────────────────────────────────────────────────
 // フィードバック画面
@@ -52,10 +62,11 @@ export default function FeedbackScreen() {
 
     setSending(true);
     const { error } = await supabase.from('feedback').insert({
-      user_id:     user.id,
+      user_id:           user.id,
       category,
-      message:     message.trim(),
-      app_version: APP_VERSION,
+      message:           message.trim(),
+      app_version:       APP_VERSION,
+      reported_in_build: getBuildNumber(),
     });
     setSending(false);
 
