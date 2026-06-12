@@ -9,23 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '@/constants/theme';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useCategories } from '@/hooks/useCategories';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
 import { localYMD } from '@/lib/dateUtils';
 import type { Database } from '@/types/database';
 
-const CATEGORIES = ['食費', '飲み会', '交通', 'サブスク', '書籍', '娯楽', 'その他'] as const;
-type Category = typeof CATEGORIES[number];
-
-const CAT_COLORS: Record<Category, string> = {
-  '食費':   '#4F46E5',
-  '飲み会': '#EC4899',
-  '交通':   '#06B6D4',
-  'サブスク':'#F59E0B',
-  '書籍':   '#10B981',
-  '娯楽':   '#8B5CF6',
-  'その他': '#9CA3AF',
-};
+// Build 50: 支出カテゴリは user_categories（useCategories）が単一の真実
 
 const BUDGET_KEY = 'campas_monthly_budget';
 type TabType = 'expenses' | 'subscriptions';
@@ -54,6 +44,7 @@ function DaysRemainingBadge({ days }: { days: number }) {
 
 export default function ExpensesScreen() {
   const { expenses, isLoading: expLoading, addExpense, deleteExpense, monthlyTotal } = useExpenses();
+  const { names: catNames, getColor: getCatColor } = useCategories();
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subMonthlyTotal } = useSubscriptions();
 
   const [tab, setTab] = useState<TabType>('expenses');
@@ -64,7 +55,7 @@ export default function ExpensesScreen() {
   const [addExpModal, setAddExpModal] = useState(false);
   const [expTitle, setExpTitle] = useState('');
   const [expAmount, setExpAmount] = useState('');
-  const [expCategory, setExpCategory] = useState<Category>('食費');
+  const [expCategory, setExpCategory] = useState<string>('食費');
   const [expMemo, setExpMemo] = useState('');
 
   const [addSubModal, setAddSubModal] = useState(false);
@@ -246,7 +237,7 @@ export default function ExpensesScreen() {
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>カテゴリ別</Text>
               {categoryData.map(({ cat, total }) => {
-                const color = CAT_COLORS[cat as Category] ?? COLORS.gray400;
+                const color = getCatColor(cat);
                 const pct = total / maxAmount;
                 const share = monthlyTotal > 0 ? Math.round((total / monthlyTotal) * 100) : 0;
                 return (
@@ -279,7 +270,7 @@ export default function ExpensesScreen() {
                   { text: '削除', style: 'destructive', onPress: () => deleteExpense(item.id) },
                 ])}
               >
-                <View style={[styles.catDot, { backgroundColor: CAT_COLORS[item.category as Category] ?? COLORS.gray400 }]} />
+                <View style={[styles.catDot, { backgroundColor: getCatColor(item.category) }]} />
                 <View style={styles.expenseBody}>
                   <Text style={styles.expenseTitle}>{item.title}</Text>
                   {item.note ? <Text style={styles.expenseMemo}>{item.note}</Text> : null}
@@ -369,10 +360,10 @@ export default function ExpensesScreen() {
               <TextInput style={styles.input} placeholder="例: 850" value={expAmount} onChangeText={setExpAmount} keyboardType="number-pad" />
               <Text style={styles.inputLabel}>カテゴリ</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-                {CATEGORIES.map(c => (
+                {catNames.map(c => (
                   <TouchableOpacity
                     key={c}
-                    style={[styles.catChip, { borderColor: CAT_COLORS[c] }, expCategory === c && { backgroundColor: CAT_COLORS[c] }]}
+                    style={[styles.catChip, { borderColor: getCatColor(c) }, expCategory === c && { backgroundColor: getCatColor(c) }]}
                     onPress={() => setExpCategory(c)}
                   >
                     <Text style={[styles.catChipText, expCategory === c && { color: '#fff' }]}>{c}</Text>

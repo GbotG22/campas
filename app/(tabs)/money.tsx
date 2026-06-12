@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 import InlineDatePicker from '@/components/InlineDatePicker';
 import InlineTimePicker from '@/components/InlineTimePicker';
@@ -16,6 +17,7 @@ import { useCreditCards, getClosingPeriod, getPaymentDate, CreditCard } from '@/
 import { useFixedExpenses, FIXED_EXPENSE_CATEGORIES, getCategoryDef, getNextPaymentDate, type FixedExpense, type FixedExpenseCategory } from '@/hooks/useFixedExpenses';
 import { scheduleFixedExpenseNotification, cancelFixedExpenseNotification } from '@/lib/notifications';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useCategories, FALLBACK_CATEGORY } from '@/hooks/useCategories';
 import { useIncomes, INCOME_TYPE_CONFIG } from '@/hooks/useIncomes';
 import { useShifts, calcWage, formatMinutes, calcWorkMinutes } from '@/hooks/useShifts';
 import type { ShiftWithWorkplace } from '@/hooks/useShifts';
@@ -40,17 +42,8 @@ interface SalaryRecord extends SalaryRecordRow {
 }
 
 // ── 支出カテゴリ ───────────────────────────────────────────
-const CATEGORIES = ['食費', '飲み会', '交通', 'サブスク', '書籍', '娯楽', 'その他'] as const;
-type Category = typeof CATEGORIES[number];
-const CAT_COLORS: Record<Category, string> = {
-  '食費':    '#4F46E5',
-  '飲み会':  '#EC4899',
-  '交通':    '#06B6D4',
-  'サブスク': '#F59E0B',
-  '書籍':    '#10B981',
-  '娯楽':    '#8B5CF6',
-  'その他':  '#9CA3AF',
-};
+// Build 50: ユーザー定義カテゴリ（user_categories）へ移行。
+// 定義・色は useCategories() が単一の真実。
 
 // ── 締め日・給料日 プリセット ─────────────────────────────
 const SHIFT_NOTIF_OPTIONS: { value: number | null; label: string }[] = [
@@ -114,6 +107,7 @@ export default function MoneyScreen() {
 
   // ── データフック ───────────────────────────────────────────
   const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses(selYear, selMonth);
+  const { names: catNames, getColor: getCatColor } = useCategories();
   // カードタブ: 請求期間が2ヶ月にまたがるため前月分も取得して結合
   const prevMonthYear  = selMonth === 1 ? selYear - 1 : selYear;
   const prevMonthMonth = selMonth === 1 ? 12 : selMonth - 1;
@@ -186,7 +180,7 @@ export default function MoneyScreen() {
   const [editingExp, setEditingExp]   = useState<Expense | null>(null);
   const [expTitle, setExpTitle]       = useState('');
   const [expAmount, setExpAmount]     = useState('');
-  const [expCat, setExpCat]           = useState<Category>('食費');
+  const [expCat, setExpCat]           = useState<string>('食費');
   const [expDate, setExpDate]         = useState(localYMD(now));
   const [expMemo, setExpMemo]             = useState('');
   const [expPayMethod, setExpPayMethod]   = useState<'cash'|'credit'|'other'>('cash');
@@ -208,7 +202,7 @@ export default function MoneyScreen() {
     setEditingExp(exp);
     setExpTitle(exp.title);
     setExpAmount(String(exp.amount));
-    setExpCat((exp.category as Category) ?? '食費');
+    setExpCat(exp.category ?? FALLBACK_CATEGORY);
     setExpDate(exp.paid_at ?? localYMD(now));
     setExpMemo(exp.note ?? '');
     const pm = exp.payment_method as string;
@@ -651,11 +645,18 @@ export default function MoneyScreen() {
               <TextInput style={styles.input} placeholder="例: 850" value={expAmount} onChangeText={setExpAmount} keyboardType="number-pad" />
               <Text style={styles.inputLabel}>カテゴリ</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
-                {CATEGORIES.map(c => (
-                  <TouchableOpacity key={c} style={[styles.chip, { borderColor: CAT_COLORS[c] }, expCat === c && { backgroundColor: CAT_COLORS[c] }]} onPress={() => setExpCat(c)}>
+                {catNames.map(c => (
+                  <TouchableOpacity key={c} style={[styles.chip, { borderColor: getCatColor(c) }, expCat === c && { backgroundColor: getCatColor(c) }]} onPress={() => setExpCat(c)}>
                     <Text style={[styles.chipText, expCat === c && { color: '#fff' }]}>{c}</Text>
                   </TouchableOpacity>
                 ))}
+                <TouchableOpacity
+                  style={[styles.chip, { borderColor: COLORS.gray300, flexDirection: 'row', alignItems: 'center', gap: 3 }]}
+                  onPress={() => { setAddExpModal(false); router.push('/settings/categories' as never); }}
+                >
+                  <Ionicons name="settings-outline" size={13} color={COLORS.gray500} />
+                  <Text style={styles.chipText}>編集</Text>
+                </TouchableOpacity>
               </ScrollView>
               <InlineDatePicker label="日付" value={expDate} onChange={setExpDate} />
               <Text style={styles.inputLabel}>支払方法</Text>
@@ -1040,6 +1041,7 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
   onEdit: (item: Database['public']['Tables']['expenses']['Row']) => void;
   onSetBudget: () => void;
 }) {
+  const { getColor: getCatColor } = useCategories();
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={styles.summaryCard}>
@@ -1070,7 +1072,7 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
         <View style={styles.card}>
           <Text style={styles.cardTitle}>カテゴリ別</Text>
           {catData.map(({ cat, total }) => {
-            const color = CAT_COLORS[cat as Category] ?? COLORS.gray400;
+            const color = getCatColor(cat);
             const pct   = total / maxCat;
             const share = monthlyTotal > 0 ? Math.round((total / monthlyTotal) * 100) : 0;
             return (
@@ -1092,7 +1094,7 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
         <Empty icon="receipt-outline" text="この月の支出はまだありません" />
       ) : expenses.map(item => (
         <TouchableOpacity key={item.id} style={styles.row} onPress={() => onEdit(item)} activeOpacity={0.75}>
-          <View style={[styles.dot, { backgroundColor: CAT_COLORS[item.category as Category] ?? COLORS.gray400 }]} />
+          <View style={[styles.dot, { backgroundColor: getCatColor(item.category) }]} />
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{item.title}</Text>
             {item.note ? <Text style={styles.rowMeta}>{item.note}</Text> : null}

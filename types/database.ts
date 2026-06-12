@@ -675,6 +675,43 @@ export type Database = {
       };
 
       // ──────────────────────────────────────────
+      // ユーザー定義カテゴリ（Build 50: expense のみ使用）
+      // ──────────────────────────────────────────
+      user_categories: {
+        Row: {
+          id:         string;
+          user_id:    string;
+          type:       'expense' | 'event' | 'task';
+          name:       string;
+          color:      string;
+          sort_order: number;
+          is_default: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?:         string;
+          user_id:     string;
+          type?:       'expense' | 'event' | 'task';
+          name:        string;
+          color?:      string;
+          sort_order?: number;
+          is_default?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?:         string;
+          user_id?:    string;
+          type?:       'expense' | 'event' | 'task';
+          name?:       string;
+          color?:      string;
+          sort_order?: number;
+          is_default?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+
+      // ──────────────────────────────────────────
       // 支出
       // ──────────────────────────────────────────
       credit_cards: {
