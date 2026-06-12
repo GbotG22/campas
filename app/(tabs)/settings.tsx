@@ -308,6 +308,17 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* ── セクション：サポート ── */}
+        <SectionLabel label="サポート" />
+        <View style={styles.menuCard}>
+          <SettingsRow
+            icon="chatbubble-ellipses-outline"
+            label="ご意見・不具合報告"
+            onPress={() => router.push('/settings/feedback' as never)}
+            isLast
+          />
+        </View>
+
         {/* ── セクション：法的情報 ── */}
         <SectionLabel label="法的情報" />
         <View style={styles.menuCard}>

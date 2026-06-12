@@ -632,6 +632,40 @@ export type Database = {
       };
 
       // ──────────────────────────────────────────
+      // フィードバック
+      // ──────────────────────────────────────────
+      feedback: {
+        Row: {
+          id:             string;
+          user_id:        string;
+          category:       '不具合報告' | '改善要望' | '新機能の提案' | 'その他';
+          message:        string;
+          screenshot_url: string | null;
+          app_version:    string | null;
+          created_at:     string;
+        };
+        Insert: {
+          id?:            string;
+          user_id:        string;
+          category:       '不具合報告' | '改善要望' | '新機能の提案' | 'その他';
+          message:        string;
+          screenshot_url?: string | null;
+          app_version?:   string | null;
+          created_at?:    string;
+        };
+        Update: {
+          id?:            string;
+          user_id?:       string;
+          category?:      '不具合報告' | '改善要望' | '新機能の提案' | 'その他';
+          message?:       string;
+          screenshot_url?: string | null;
+          app_version?:   string | null;
+          created_at?:    string;
+        };
+        Relationships: [];
+      };
+
+      // ──────────────────────────────────────────
       // 支出
       // ──────────────────────────────────────────
       credit_cards: {
