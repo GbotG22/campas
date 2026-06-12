@@ -1,3 +1,7 @@
+// Dynamic Type 対策（Text/TextInput に maxFontSizeMultiplier=1.2 を全体適用）
+// 他モジュールより先に評価させるため先頭で import する
+import '@/lib/fontScaling';
+
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
