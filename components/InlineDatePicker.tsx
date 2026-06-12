@@ -9,6 +9,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import MonthCalendar from '@/components/MonthCalendar';
 import { COLORS } from '@/constants/theme';
+import { todayYMD } from '@/lib/dateUtils';
 
 interface Props {
   /** YYYY-MM-DD (format='date') or YYYY-MM (format='yearMonth') */
@@ -36,7 +37,7 @@ function fmtYM(s: string): string {
 
 function parseYM(v: string) {
   const t = new Date();
-  const src = v || t.toISOString().split('T')[0];
+  const src = v || todayYMD();
   if (/^\d{4}-\d{2}/.test(src)) {
     return { year: parseInt(src.slice(0,4)), month: parseInt(src.slice(5,7)) };
   }

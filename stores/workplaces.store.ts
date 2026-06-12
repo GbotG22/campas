@@ -5,6 +5,7 @@ import {
   rescheduleAllPaydayNotifications,
   schedulePaydayNotification,
   cancelPaydayNotification,
+  cancelShiftNotification,
 } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth.store';
@@ -108,6 +109,15 @@ export const useWorkplacesStore = create<WorkplacesState>((set, get) => ({
     const user = useAuthStore.getState().user;
     if (!user) return { message: 'ログインが必要です' };
 
+    // 削除前に紐づくシフトIDを控える（DB側は cascade で消えるが、
+    // 端末にスケジュール済みの開始前通知はキャンセルしないと残るため）
+    let shiftIds: string[] = [];
+    try {
+      const { data } = await supabase
+        .from('shifts').select('id').eq('workplace_id', id);
+      shiftIds = (data ?? []).map(s => s.id);
+    } catch { /* 取得失敗時は次回の rescheduleAll で同期される */ }
+
     const { error } = await supabase.from('workplaces').delete().eq('id', id);
     if (error) {
       console.error('[WorkplacesStore] delete error:', error.code, error.message);
@@ -116,6 +126,7 @@ export const useWorkplacesStore = create<WorkplacesState>((set, get) => ({
       set({ workplaces: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
       cancelPaydayNotification(id).catch(() => {});
+      shiftIds.forEach(sid => cancelShiftNotification(sid).catch(() => {}));
     }
     return error;
   },

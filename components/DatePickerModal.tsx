@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { COLORS } from '@/constants/theme';
 import MonthCalendar from '@/components/MonthCalendar';
+import { todayYMD } from '@/lib/dateUtils';
 
 interface Props {
   visible:   boolean;
@@ -47,7 +48,7 @@ export default function DatePickerModal({ visible, value, onConfirm, onCancel, t
   const initial   = parseYM(value);
   const [year,    setYear]    = useState(initial.year);
   const [month,   setMonth]   = useState(initial.month);
-  const [selected, setSelected] = useState(value || today.toISOString().split('T')[0]);
+  const [selected, setSelected] = useState(value || todayYMD());
 
   // visible になるたびに value に合わせてリセット
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function DatePickerModal({ visible, value, onConfirm, onCancel, t
       const ym = parseYM(value);
       setYear(ym.year);
       setMonth(ym.month);
-      setSelected(value || today.toISOString().split('T')[0]);
+      setSelected(value || todayYMD());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -115,7 +116,7 @@ export default function DatePickerModal({ visible, value, onConfirm, onCancel, t
         <TouchableOpacity
           style={styles.todayBtn}
           onPress={() => {
-            const t = today.toISOString().split('T')[0];
+            const t = todayYMD();
             const ym = parseYM(t);
             setYear(ym.year);
             setMonth(ym.month);
