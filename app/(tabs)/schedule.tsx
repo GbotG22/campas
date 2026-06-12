@@ -13,7 +13,7 @@
  *  - ScheduleItem[] → GPT-4oへ送信して「いつレポートを書き始めるべきか」アドバイス
  * ──────────────────────────────────────────────────────────────────
  */
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Modal, Platform,
   ScrollView, StyleSheet, Text, TextInput,
@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
 import InlineDatePicker from '@/components/InlineDatePicker';
@@ -109,6 +109,10 @@ export default function ScheduleScreen() {
   const [calYear,  setCalYear]  = useState(todayDate.getFullYear());
   const [calMonth, setCalMonth] = useState(todayDate.getMonth() + 1);
   const [selectedDate, setSelectedDate] = useState<string | null>(getToday());
+
+  // 画面フォーカス時に再描画し「今日」マークを最新化（日付またぎ対策）
+  const [, forceUpdate] = useState(0);
+  useFocusEffect(useCallback(() => { forceUpdate(n => n + 1); }, []));
 
   function prevMonth() {
     if (calMonth === 1) { setCalYear(y => y-1); setCalMonth(12); }

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { COLORS } from '@/constants/theme';
+import { todayYMD } from '@/lib/dateUtils';
 
 export interface CalendarMarker {
   date:  string;   // YYYY-MM-DD
@@ -21,9 +22,10 @@ interface Props {
 const WEEK_HEADERS = ['月', '火', '水', '木', '金', '土', '日'];
 const MONTH_NAMES  = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-const TODAY = new Date().toISOString().split('T')[0];
-
 export default function MonthCalendar({ year, month, selectedDate, onSelectDate, markers, onPrevMonth, onNextMonth }: Props) {
+
+  // 描画ごとに評価（モジュールレベル定数だと起動時刻で凍結＆UTCずれするため）
+  const TODAY = todayYMD();
 
   // ── カレンダーグリッドを構築 ─────────────────────────────
   const { weeks, daysInMonth } = useMemo(() => {

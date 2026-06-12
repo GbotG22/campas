@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Linking from 'expo-linking';
 
 import { supabase } from '@/lib/supabase';
 import { configureRevenueCat } from '@/lib/revenuecat';
@@ -56,20 +57,50 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // パスワードリセット等のディープリンク処理
+  // メールリンク → camply://reset-password#access_token=...&type=recovery
+  // implicit フローのトークンは URL フラグメントに乗るため手動で setSession する
+  // （React Native では detectSessionInUrl が効かないため）
+  useEffect(() => {
+    async function handleUrl(url: string | null) {
+      if (!url) return;
+      const hashIndex = url.indexOf('#');
+      if (hashIndex === -1) return;
+      const params = new URLSearchParams(url.slice(hashIndex + 1));
+      const access_token  = params.get('access_token');
+      const refresh_token = params.get('refresh_token');
+      const type          = params.get('type');
+      if (access_token && refresh_token) {
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (!error && type === 'recovery') {
+          router.replace('/(auth)/reset-password' as never);
+        }
+      }
+    }
+
+    Linking.getInitialURL().then(handleUrl).catch(() => {});
+    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => sub.remove();
+  }, []);
+
   // 認証状態確定後にナビゲーション + スプラッシュ非表示
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const inAuthGroup    = segments[0] === '(auth)';
+    const onResetPassword = (segments[1] as string) === 'reset-password';
 
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/login');
-    } else if (session && inAuthGroup) {
+    } else if (session && inAuthGroup && !onResetPassword) {
+      // リセット中（recovery セッション）はリダイレクトしない
       router.replace('/(tabs)');
+    } else {
+      // リダイレクト不要 = 既に正しい画面 → ここで初めてスプラッシュを隠す
+      // （リダイレクト前に隠すとログイン画面などが一瞬チラつくため）
+      SplashScreen.hideAsync();
     }
-
-    SplashScreen.hideAsync();
-  }, [session, isLoading]);
+  }, [session, isLoading, segments]);
 
   return (
     <>
