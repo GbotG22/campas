@@ -945,7 +945,7 @@ const styles = StyleSheet.create({
   aiErrorText:  { fontSize: 13, color: COLORS.gray600, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
 
   aiNote:     { marginTop: 16, gap: 4 },
-  aiNoteText: { fontSize: 11, color: COLORS.gray400, textAlign: 'center' },
+  aiNoteText: { fontSize: 12, color: COLORS.gray400, textAlign: 'center' },
 
   // カレンダー
   calendarWrap: { backgroundColor: COLORS.white, marginHorizontal: 0, borderBottomWidth: 1, borderBottomColor: COLORS.gray100 },
@@ -981,7 +981,7 @@ const styles = StyleSheet.create({
   itemBody:  { flex: 1 },
   itemTitle: { fontSize: 14, fontWeight: '700', color: COLORS.gray900, lineHeight: 20 },
   itemMeta:  { flexDirection: 'row', gap: 8, marginTop: 3, flexWrap: 'wrap' },
-  metaText:  { fontSize: 12, color: COLORS.gray400 },
+  metaText:  { fontSize: 13, color: COLORS.gray400 },
   doneText:  { textDecorationLine: 'line-through', color: COLORS.gray400 },
   typeBadge:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },
@@ -1020,7 +1020,7 @@ const styles = StyleSheet.create({
   nativeDetailRow:   { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   nativeDetailLabel: { fontSize: 13, color: COLORS.gray400, width: 80 },
   nativeDetailValue: { fontSize: 14, color: COLORS.gray900, fontWeight: '500' },
-  nativeDetailNote:  { fontSize: 12, color: COLORS.gray400, textAlign: 'center', lineHeight: 18, marginTop: 24 },
+  nativeDetailNote:  { fontSize: 13, color: COLORS.gray400, textAlign: 'center', lineHeight: 20, marginTop: 24 },
 
   // バイト先
   wpRow:      { flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap', marginBottom: 14 },

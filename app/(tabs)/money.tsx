@@ -1807,7 +1807,7 @@ const styles = StyleSheet.create({
     ...SHADOW.sm,
   },
   rowTitle:  { fontSize: 14, fontWeight: '600', color: COLORS.gray900 },
-  rowMeta:   { fontSize: 11, color: COLORS.gray400, marginTop: 2 },
+  rowMeta:   { fontSize: 12, color: COLORS.gray400, marginTop: 2 },
   rowAmount: { fontSize: 15, fontWeight: '700', color: COLORS.gray900 },
 
   dot: { width: 10, height: 10, borderRadius: 5 },

@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
   eventIcon: { width: 20, textAlign: 'center' },
   eventBody:  { flex: 1 },
   eventTitle: { fontSize: 14, fontWeight: '600', color: COLORS.gray900 },
-  eventMeta:  { fontSize: 12, color: COLORS.gray400, marginTop: 2 },
+  eventMeta:  { fontSize: 13, color: COLORS.gray400, marginTop: 2 },
   doneText:   { textDecorationLine: 'line-through', color: COLORS.gray400 },
   typeBadge:  { borderRadius: RADIUS.sm, paddingHorizontal: 7, paddingVertical: 3 },
   typeBadgeText: { fontSize: 11, fontWeight: '700' },

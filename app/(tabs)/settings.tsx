@@ -588,12 +588,12 @@ const styles = StyleSheet.create({
     color: COLORS.gray900,
   },
   userEmail: {
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.gray500,
     marginTop: 1,
   },
   userSince: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.gray400,
     marginTop: 3,
   },
@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
 
   // ── プラン行 ──────────────────────────────────────────────
   planSublabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.gray400,
     marginTop: 2,
   },
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   planLoadingText: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.gray400,
   },
 
