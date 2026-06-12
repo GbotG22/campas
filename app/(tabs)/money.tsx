@@ -53,6 +53,17 @@ const CAT_COLORS: Record<Category, string> = {
 };
 
 // ── 締め日・給料日 プリセット ─────────────────────────────
+const SHIFT_NOTIF_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: '通知なし' },
+  { value: 0,    label: '時刻通り' },
+  { value: 5,    label: '5分前' },
+  { value: 10,   label: '10分前' },
+  { value: 15,   label: '15分前' },
+  { value: 30,   label: '30分前' },
+  { value: 60,   label: '1時間前' },
+  { value: 1440, label: '1日前' },
+];
+
 const CLOSING_DAY_OPTIONS = [31, 25, 20, 15] as const;
 const PAYDAY_DAY_OPTIONS  = [31, 25, 20, 15, 10] as const;
 
@@ -332,6 +343,7 @@ export default function MoneyScreen() {
   const [sfEnd, setSfEnd]                 = useState('18:00');
   const [sfBreak, setSfBreak]             = useState('60');
   const [sfNote, setSfNote]               = useState('');
+  const [sfNotifMin, setSfNotifMin]       = useState<number | null>(null); // null = 通知なし
   const [sfSaving, setSfSaving]           = useState(false);
 
   function openShiftModal() {
@@ -339,6 +351,7 @@ export default function MoneyScreen() {
     setSfWpId(workplaces[0]?.id ?? '');
     setSfDate(localYMD(now));
     setSfStart('09:00'); setSfEnd('18:00'); setSfBreak('60'); setSfNote('');
+    setSfNotifMin(null);
     setShiftModal(true);
   }
 
@@ -350,6 +363,7 @@ export default function MoneyScreen() {
     setSfEnd(shift.end_time);
     setSfBreak(String(shift.break_minutes ?? 0));
     setSfNote(shift.note ?? '');
+    setSfNotifMin(shift.notification_enabled ? shift.notification_minutes_before : null);
     setShiftModal(true);
   }
 
@@ -369,7 +383,7 @@ export default function MoneyScreen() {
     const wp = workplaces.find(w => w.id === sfWpId);
     if (!wp) return;
     setSfSaving(true);
-    const payload = { workplace_id: sfWpId, date: sfDate, start_time: sfStart, end_time: sfEnd, break_minutes: parseInt(sfBreak, 10) || 0, note: sfNote.trim() || null };
+    const payload = { workplace_id: sfWpId, date: sfDate, start_time: sfStart, end_time: sfEnd, break_minutes: parseInt(sfBreak, 10) || 0, note: sfNote.trim() || null, notification_enabled: sfNotifMin !== null, notification_minutes_before: sfNotifMin ?? 0 };
     const err = editingShift
       ? await updateShift(editingShift.id, payload, wp.hourly_wage)
       : await addShift(payload, wp.hourly_wage);
@@ -807,6 +821,21 @@ export default function MoneyScreen() {
                   <InlineTimePicker label="終了時刻" value={sfEnd} onChange={setSfEnd} />
                   <Text style={styles.inputLabel}>休憩時間（分）</Text>
                   <TextInput style={styles.input} placeholder="60" value={sfBreak} onChangeText={setSfBreak} keyboardType="number-pad" />
+                  <Text style={styles.inputLabel}>通知</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {SHIFT_NOTIF_OPTIONS.map(opt => {
+                      const selected = sfNotifMin === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={String(opt.value)}
+                          style={[styles.chip, selected && { backgroundColor: COLORS.primary, borderColor: COLORS.primary }]}
+                          onPress={() => setSfNotifMin(opt.value)}
+                        >
+                          <Text style={[styles.chipText, selected && { color: '#fff' }]}>{opt.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                   {shiftWagePreview && (
                     <View style={styles.wagePreview}>
                       <Text style={styles.wagePreviewLabel}>給与見込み</Text>

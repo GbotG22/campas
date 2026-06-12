@@ -249,6 +249,8 @@ export default function ScheduleScreen() {
   const [shiftStart,     setShiftStart]     = useState('');
   const [shiftEnd,       setShiftEnd]       = useState('');
   const [shiftBreak,     setShiftBreak]     = useState('0');
+  // 通知タイミング（null = 通知なし、0 = 時刻通り、分単位）。イベント・シフト共用
+  const [notifMin,       setNotifMin]       = useState<number | null>(null);
 
   // 追加モードで開く（選択日を自動セット）
   function openAdd(type: EventType | 'shift' = 'assignment') {
@@ -262,6 +264,7 @@ export default function ScheduleScreen() {
       setShiftMode(false); setEvType(type);
       setEvTitle(''); setEvDate(date); setEvTime(''); setEvEndTime(''); setEvDesc('');
     }
+    setNotifMin(null);
     setModalVisible(true);
   }
 
@@ -318,6 +321,7 @@ export default function ScheduleScreen() {
       setShiftStart(s.start_time);
       setShiftEnd(s.end_time);
       setShiftBreak(String(s.break_minutes));
+      setNotifMin(s.notification_enabled ? s.notification_minutes_before : null);
     } else {
       const e = item.raw as AppEvent;
       setShiftMode(false);
@@ -327,6 +331,7 @@ export default function ScheduleScreen() {
       setEvTime(e.start_time ?? '');
       setEvEndTime(e.end_time ?? '');
       setEvDesc(e.description ?? '');
+      setNotifMin(e.notification_enabled ? e.notification_minutes_before : null);
     }
     setModalVisible(true);
   }
@@ -351,6 +356,8 @@ export default function ScheduleScreen() {
         workplace_id: shiftWorkplace, date: shiftDate,
         start_time: shiftStart, end_time: shiftEnd,
         break_minutes: parseInt(shiftBreak, 10) || 0, note: null as null,
+        notification_enabled: notifMin !== null,
+        notification_minutes_before: notifMin ?? 0,
       };
       err = editingItem
         ? await updateShift(editingItem.id, data, wp?.hourly_wage)
@@ -373,6 +380,8 @@ export default function ScheduleScreen() {
         event_type: evType, title: evTitle.trim(), start_date: evDate,
         start_time: evTime || null, end_time: evEndTime || null,
         description: evDesc.trim() || null, all_day: !evTime, is_done: false, color: null as null,
+        notification_enabled: notifMin !== null,
+        notification_minutes_before: notifMin ?? 0,
       };
       err = editingItem
         ? await updateEvent(editingItem.id, data)
@@ -713,6 +722,7 @@ export default function ScheduleScreen() {
                   <InlineTimePicker label="開始時刻 *" value={shiftStart} onChange={setShiftStart} />
                   <InlineTimePicker label="終了時刻 *" value={shiftEnd} onChange={setShiftEnd} />
                   <FormInput label="休憩（分）" value={shiftBreak} onChange={setShiftBreak} placeholder="60" keyboardType="number-pad" />
+                  <NotifPicker value={notifMin} onChange={setNotifMin} />
                   {shiftStart && shiftEnd && shiftWorkplace && (
                     <View style={styles.wagePreview}>
                       <Text style={styles.wagePreviewText}>
@@ -733,6 +743,7 @@ export default function ScheduleScreen() {
                   <InlineDatePicker label="日付 *" value={evDate} onChange={setEvDate} />
                   <InlineTimePicker label="開始時刻（任意）" value={evTime} onChange={setEvTime} optional />
                   <InlineTimePicker label="終了時刻（任意）" value={evEndTime} onChange={setEvEndTime} optional />
+                  <NotifPicker value={notifMin} onChange={setNotifMin} />
                   <FormInput label="メモ（任意）" value={evDesc} onChange={setEvDesc} placeholder="詳細・メモ" />
                 </>
               )}
@@ -875,6 +886,44 @@ export default function ScheduleScreen() {
   );
 }
 
+// ── 通知タイミング選択 ────────────────────────────────────────────
+const NOTIF_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: '通知なし' },
+  { value: 0,    label: '時刻通り' },
+  { value: 5,    label: '5分前' },
+  { value: 10,   label: '10分前' },
+  { value: 15,   label: '15分前' },
+  { value: 30,   label: '30分前' },
+  { value: 60,   label: '1時間前' },
+  { value: 1440, label: '1日前' },
+];
+
+function NotifPicker({ value, onChange }: {
+  value: number | null; onChange: (v: number | null) => void;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={styles.formLabel}>通知</Text>
+      <View style={styles.notifRow}>
+        {NOTIF_OPTIONS.map(opt => {
+          const selected = value === opt.value;
+          return (
+            <TouchableOpacity
+              key={String(opt.value)}
+              style={[styles.notifChip, selected && styles.notifChipOn]}
+              onPress={() => onChange(opt.value)}
+            >
+              <Text style={[styles.notifChipText, selected && styles.notifChipTextOn]}>
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ── 汎用フォーム入力 ──────────────────────────────────────────────
 function FormInput({ label, value, onChange, placeholder, keyboardType }: {
   label: string; value: string; onChange: (t: string) => void;
@@ -1010,6 +1059,16 @@ const styles = StyleSheet.create({
 
   // フォーム
   formLabel: { fontSize: 13, fontWeight: '700', color: COLORS.gray600, marginBottom: 6 },
+
+  // 通知タイミングチップ
+  notifRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  notifChip: {
+    borderWidth: 1.5, borderColor: COLORS.gray200, borderRadius: RADIUS.full,
+    paddingHorizontal: 12, paddingVertical: 7, backgroundColor: COLORS.white,
+  },
+  notifChipOn:      { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
+  notifChipText:    { fontSize: 13, fontWeight: '600', color: COLORS.gray500 },
+  notifChipTextOn:  { color: COLORS.primary, fontWeight: '700' },
   formInput: { borderWidth: 1, borderColor: COLORS.gray200, borderRadius: RADIUS.sm + 2, padding: 12, fontSize: 14, color: COLORS.gray900, backgroundColor: COLORS.gray50 },
 
   // 端末カレンダー詳細モーダル

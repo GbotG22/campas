@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import {
   scheduleEventNotifications,
+  scheduleCustomEventNotification,
   cancelEventNotifications,
   rescheduleAllEventNotifications,
 } from '@/lib/notifications';
@@ -94,6 +95,8 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       if (NOTIFIABLE_TYPES.includes(data.event_type as EventType)) {
         scheduleEventNotifications(data).catch(() => {});
       }
+      // 予定個別の通知設定があれば登録
+      scheduleCustomEventNotification(data).catch(() => {});
     }
     return error;
   },
@@ -118,6 +121,8 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       if (NOTIFIABLE_TYPES.includes(data.event_type as EventType) && !data.is_done) {
         scheduleEventNotifications(data).catch(() => {});
       }
+      // 予定個別の通知も新しい内容で再登録
+      scheduleCustomEventNotification(data).catch(() => {});
     }
     return error;
   },

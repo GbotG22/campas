@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import {
   scheduleShiftNotification,
+  scheduleCustomShiftNotification,
   cancelShiftNotification,
   rescheduleAllShiftNotifications,
 } from '@/lib/notifications';
@@ -90,6 +91,8 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
             date:           s.date,
             start_time:     s.start_time,
             workplace_name: s.workplace?.name ?? null,
+            notification_enabled:        s.notification_enabled,
+            notification_minutes_before: s.notification_minutes_before,
           })),
         ).catch(() => {});
       }
@@ -118,13 +121,17 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
         .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
       set({ shifts: next });
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
-      // バイト開始30分前の通知を登録
-      scheduleShiftNotification({
+      // バイト開始前通知（全体設定）＋シフト個別通知を登録
+      const params = {
         id:             typed.id,
         date:           typed.date,
         start_time:     typed.start_time,
         workplace_name: typed.workplace?.name ?? null,
-      }).catch(() => {});
+        notification_enabled:        typed.notification_enabled,
+        notification_minutes_before: typed.notification_minutes_before,
+      };
+      scheduleShiftNotification(params).catch(() => {});
+      scheduleCustomShiftNotification(params).catch(() => {});
     }
     return error;
   },
@@ -155,12 +162,16 @@ export const useShiftsStore = create<ShiftsState>((set, get) => ({
       AsyncStorage.setItem(cacheKey(user.id), JSON.stringify(next)).catch(() => {});
       // 日時が変わった可能性があるため、古い通知をキャンセルして再登録
       cancelShiftNotification(id).catch(() => {});
-      scheduleShiftNotification({
+      const params = {
         id:             typed.id,
         date:           typed.date,
         start_time:     typed.start_time,
         workplace_name: typed.workplace?.name ?? null,
-      }).catch(() => {});
+        notification_enabled:        typed.notification_enabled,
+        notification_minutes_before: typed.notification_minutes_before,
+      };
+      scheduleShiftNotification(params).catch(() => {});
+      scheduleCustomShiftNotification(params).catch(() => {});
     }
     return error;
   },

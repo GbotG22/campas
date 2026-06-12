@@ -325,7 +325,50 @@ export async function cancelEventNotifications(id: string): Promise<void> {
       N.cancelScheduledNotificationAsync(`ev_${id}_3d`),
       N.cancelScheduledNotificationAsync(`ev_${id}_1d`),
       N.cancelScheduledNotificationAsync(`ev_${id}_0d`),
+      N.cancelScheduledNotificationAsync(`ev_${id}_custom`),
     ]);
+  } catch { /* ignore */ }
+}
+
+// ── 予定ごとの個別通知（ユーザーが予定単位で設定） ──────────────
+
+/** 「30分前」「1時間前」「1日前」等のラベル */
+export function minutesBeforeLabel(min: number): string {
+  if (min === 0)    return '時刻通り';
+  if (min === 1440) return '1日前';
+  if (min >= 60)    return `${min / 60}時間前`;
+  return `${min}分前`;
+}
+
+/**
+ * 予定単位の通知を予約する。
+ * notification_enabled = false の予定は何もしない。
+ * 終日予定（start_time なし）は 09:00 を基準時刻とする。
+ */
+export async function scheduleCustomEventNotification(event: AppEvent): Promise<void> {
+  try {
+    if (!event.notification_enabled || event.is_done) return;
+    const N = getNotifications();
+    if (!N) return;
+
+    const baseTime    = event.start_time ?? '09:00';
+    const start       = new Date(`${event.start_date}T${baseTime}:00`);
+    const min         = event.notification_minutes_before ?? 0;
+    const triggerDate = new Date(start.getTime() - min * 60 * 1000);
+    if (triggerDate <= new Date()) return;
+
+    const title = min === 0
+      ? `⏰ 予定の時間です`
+      : `⏰ ${minutesBeforeLabel(min)}のお知らせ`;
+    await N.scheduleNotificationAsync({
+      identifier: `ev_${event.id}_custom`,
+      content: {
+        title,
+        body:  `${baseTime}から「${event.title}」の予定があります`,
+        sound: true,
+      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+    });
   } catch { /* ignore */ }
 }
 
@@ -344,6 +387,7 @@ export async function rescheduleAllEventNotifications(events: AppEvent[]): Promi
       if (!ev.is_done && isNotifiableEventType(ev.event_type)) {
         await scheduleEventNotifications(ev);
       }
+      await scheduleCustomEventNotification(ev);
     }
   } catch { /* ignore */ }
 }
@@ -357,6 +401,9 @@ interface ShiftNotificationParams {
   date:            string;        // YYYY-MM-DD
   start_time:      string;        // HH:MM
   workplace_name?: string | null;
+  /** シフト個別の通知設定（未指定なら全体設定のみ） */
+  notification_enabled?:        boolean;
+  notification_minutes_before?: number;
 }
 
 export async function scheduleShiftNotification(
@@ -389,11 +436,44 @@ export async function scheduleShiftNotification(
   } catch { /* ignore */ }
 }
 
+/** シフト個別の通知（シフト単位で「何分前」を設定したもの） */
+export async function scheduleCustomShiftNotification(
+  shift: ShiftNotificationParams,
+): Promise<void> {
+  try {
+    if (!shift.notification_enabled) return;
+    const N = getNotifications();
+    if (!N) return;
+
+    const start       = new Date(`${shift.date}T${shift.start_time}:00`);
+    const min         = shift.notification_minutes_before ?? 0;
+    const triggerDate = new Date(start.getTime() - min * 60 * 1000);
+    if (triggerDate <= new Date()) return;
+
+    const name  = shift.workplace_name ?? 'バイト';
+    const title = min === 0
+      ? `💼 バイトの時間です`
+      : `💼 バイト${minutesBeforeLabel(min)}のお知らせ`;
+    await N.scheduleNotificationAsync({
+      identifier: `shift_${shift.id}_custom`,
+      content: {
+        title,
+        body:  `${shift.start_time}から「${name}」の予定があります`,
+        sound: true,
+      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: triggerDate },
+    });
+  } catch { /* ignore */ }
+}
+
 export async function cancelShiftNotification(id: string): Promise<void> {
   try {
     const N = getNotifications();
     if (!N) return;
-    await N.cancelScheduledNotificationAsync(`shift_${id}_pre`);
+    await Promise.all([
+      N.cancelScheduledNotificationAsync(`shift_${id}_pre`),
+      N.cancelScheduledNotificationAsync(`shift_${id}_custom`),
+    ]);
   } catch { /* ignore */ }
 }
 
@@ -412,6 +492,7 @@ export async function rescheduleAllShiftNotifications(
     );
     for (const shift of shifts) {
       await scheduleShiftNotification(shift);
+      await scheduleCustomShiftNotification(shift);
     }
   } catch { /* ignore */ }
 }

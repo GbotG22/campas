@@ -31,6 +31,8 @@ export type Database = {
           timetable_slot_id: string | null;
           external_source:   ExternalSource;
           external_id:       string | null;
+          notification_enabled:        boolean;
+          notification_minutes_before: number;
           created_at:        string;
           updated_at:        string;
         };
@@ -50,6 +52,8 @@ export type Database = {
           timetable_slot_id?: string | null;
           external_source?:   ExternalSource;
           external_id?:       string | null;
+          notification_enabled?:        boolean;
+          notification_minutes_before?: number;
           created_at?:        string;
           updated_at?:        string;
         };
@@ -69,6 +73,8 @@ export type Database = {
           timetable_slot_id?: string | null;
           external_source?:   ExternalSource;
           external_id?:       string | null;
+          notification_enabled?:        boolean;
+          notification_minutes_before?: number;
           created_at?:        string;
           updated_at?:        string;
         };
@@ -146,6 +152,8 @@ export type Database = {
           note:            string | null;
           external_source: ExternalSource;
           external_id:     string | null;
+          notification_enabled:        boolean;
+          notification_minutes_before: number;
           created_at:      string;
           updated_at:      string;
         };
@@ -161,6 +169,8 @@ export type Database = {
           note?:            string | null;
           external_source?: ExternalSource;
           external_id?:     string | null;
+          notification_enabled?:        boolean;
+          notification_minutes_before?: number;
           created_at?:      string;
           updated_at?:      string;
         };
@@ -176,6 +186,8 @@ export type Database = {
           note?:            string | null;
           external_source?: ExternalSource;
           external_id?:     string | null;
+          notification_enabled?:        boolean;
+          notification_minutes_before?: number;
           created_at?:      string;
           updated_at?:      string;
         };
