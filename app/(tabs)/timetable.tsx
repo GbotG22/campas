@@ -26,6 +26,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const PERIOD_COL = 54;
 const CELL_W     = Math.floor((SCREEN_W - PERIOD_COL - 14) / 5);
 const CELL_H     = 82;               // セル高さの下限（これより小さくはしない）
+const CELL_H_MAX = 104;              // セル高さの上限（4限などで縦長になりすぎない）
 const HEADER_ROW_H   = 32;           // 曜日ヘッダー行のおおよその高さ
 const ROW_GAP        = 2;            // row の marginBottom
 const GRID_PAD_BOTTOM = SPACING.md;  // grid の paddingBottom
@@ -76,7 +77,9 @@ export default function TimetableScreen() {
     const count = activePeriods.length || 1;
     if (gridH <= 0) return CELL_H;
     const avail = gridH - HEADER_ROW_H - GRID_PAD_BOTTOM - count * ROW_GAP;
-    return Math.max(CELL_H, Math.floor(avail / count));
+    // 下限 CELL_H 〜 上限 CELL_H_MAX に収める。
+    // 少時限（4限など）でも縦長になりすぎず、多時限はスクロールで対応。
+    return Math.min(CELL_H_MAX, Math.max(CELL_H, Math.floor(avail / count)));
   }, [gridH, activePeriods.length]);
 
   // ── 今日の休講・補講 ──────────────────────────────────────
