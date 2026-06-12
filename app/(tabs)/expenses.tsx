@@ -14,7 +14,7 @@ import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
 import { localYMD } from '@/lib/dateUtils';
 import type { Database } from '@/types/database';
 
-const CATEGORIES = ['食費', '飲み会', '交通', 'サブスク', '書籍', '娯楽', '美容', '衣服', '日用品', 'その他'] as const;
+const CATEGORIES = ['食費', '飲み会', '交通', 'サブスク', '書籍', '娯楽', 'その他'] as const;
 type Category = typeof CATEGORIES[number];
 
 const CAT_COLORS: Record<Category, string> = {
@@ -24,9 +24,6 @@ const CAT_COLORS: Record<Category, string> = {
   'サブスク':'#F59E0B',
   '書籍':   '#10B981',
   '娯楽':   '#8B5CF6',
-  '美容':   '#E879F9',
-  '衣服':   '#F97316',
-  '日用品': '#84CC16',
   'その他': '#9CA3AF',
 };
 
