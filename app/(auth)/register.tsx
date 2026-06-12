@@ -69,9 +69,11 @@ export default function RegisterScreen() {
         <Text style={styles.subtitle}>学生生活をもっとスマートに管理しよう</Text>
 
         {/* ── フォーム ── */}
+        <Text style={styles.label}>メールアドレス</Text>
         <TextInput
           style={styles.input}
-          placeholder="メールアドレス"
+          placeholder="example@email.com"
+          placeholderTextColor="#9CA3AF"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -79,9 +81,11 @@ export default function RegisterScreen() {
           autoComplete="email"
           returnKeyType="next"
         />
+        <Text style={styles.label}>パスワード</Text>
         <TextInput
           style={styles.input}
-          placeholder="パスワード（8文字以上）"
+          placeholder="8文字以上"
+          placeholderTextColor="#9CA3AF"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -136,6 +140,7 @@ const styles = StyleSheet.create({
   logo:     { fontSize: 32, fontWeight: '800', color: '#4F46E5', textAlign: 'center', marginBottom: 4 },
   title:    { fontSize: 22, fontWeight: '800', color: '#111827', textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 36 },
+  label:    { fontSize: 13, fontWeight: '700', color: '#4B5563', marginBottom: 6 },
 
   input: {
     borderWidth: 1,

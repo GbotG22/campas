@@ -110,9 +110,11 @@ export default function ForgotPasswordScreen() {
           パスワードリセット用のリンクをお送りします。
         </Text>
 
+        <Text style={styles.label}>メールアドレス</Text>
         <TextInput
           style={styles.input}
-          placeholder="メールアドレス"
+          placeholder="example@email.com"
+          placeholderTextColor="#9CA3AF"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -147,6 +149,7 @@ const styles = StyleSheet.create({
 
   title:    { fontSize: 24, fontWeight: '800', color: '#111827', marginBottom: 10 },
   subtitle: { fontSize: 14, color: '#6B7280', lineHeight: 21, marginBottom: 32 },
+  label:    { fontSize: 13, fontWeight: '700', color: '#4B5563', marginBottom: 6 },
 
   input: {
     borderWidth: 1,

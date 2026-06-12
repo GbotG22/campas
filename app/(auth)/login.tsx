@@ -77,9 +77,11 @@ export default function LoginScreen() {
         <Text style={styles.logo}>Camply</Text>
         <Text style={styles.subtitle}>学生のためのライフ管理アプリ</Text>
 
+        <Text style={styles.label}>メールアドレス</Text>
         <TextInput
           style={styles.input}
-          placeholder="メールアドレス"
+          placeholder="example@email.com"
+          placeholderTextColor={COLORS.gray400}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -87,9 +89,11 @@ export default function LoginScreen() {
           autoComplete="email"
           returnKeyType="next"
         />
+        <Text style={styles.label}>パスワード</Text>
         <TextInput
           style={styles.input}
           placeholder="パスワード"
+          placeholderTextColor={COLORS.gray400}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -132,6 +136,7 @@ const styles = StyleSheet.create({
   inner:     { flex: 1, padding: 24, justifyContent: 'center' },
   logo:      { fontSize: 36, fontWeight: '800', color: COLORS.primary, textAlign: 'center', marginBottom: 8 },
   subtitle:  { fontSize: 14, color: COLORS.gray500, textAlign: 'center', marginBottom: 40 },
+  label:     { fontSize: 13, fontWeight: '700', color: COLORS.gray600, marginBottom: 6 },
   input: {
     borderWidth: 1,
     borderColor: COLORS.gray200,
