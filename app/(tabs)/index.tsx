@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFocusEffect } from 'expo-router';
-import { COLORS, SPACING, RADIUS, SHADOW, DAY_LABELS } from '@/constants/theme';
+import { COLORS, SPACING, RADIUS, SHADOW } from '@/constants/theme';
 import MonthCalendar, { CalendarMarker } from '@/components/MonthCalendar';
 import { useProfileStore }     from '@/stores/profile.store';
 import { localYMD }            from '@/lib/dateUtils';
@@ -17,9 +17,6 @@ import { useExpenses }         from '@/hooks/useExpenses';
 import { useAttendance, ATT_CONFIG } from '@/hooks/useAttendance';
 import { useTodayClassEvents } from '@/hooks/useClassEvents';
 import { useNativeCalendar } from '@/hooks/useNativeCalendar';
-import type { Database }       from '@/types/database';
-
-type TimetableSlot = Database['public']['Tables']['timetable_slots']['Row'];
 
 function getYM(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
 function fmt(d: Date)   { return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; }
