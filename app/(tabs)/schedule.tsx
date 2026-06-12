@@ -340,11 +340,10 @@ export default function ScheduleScreen() {
         Alert.alert('入力エラー', 'バイト先・開始・終了時刻は必須です');
         setSaving(false); return;
       }
-      // 開始時刻 >= 終了時刻チェック（深夜またぎは非対応のため警告）
-      const [sh, sm] = shiftStart.split(':').map(Number);
-      const [eh, em] = shiftEnd.split(':').map(Number);
-      if (sh * 60 + sm >= eh * 60 + em) {
-        Alert.alert('入力エラー', '終了時刻は開始時刻より後にしてください\n（深夜をまたぐシフトは翌日に分けて入力してください）');
+      // 終了 <= 開始は翌日扱い（深夜またぎ。給与計算は calcWorkMinutes が +24h で対応済み）。
+      // 完全に同時刻のみ、誤登録（24時間シフト）防止のためエラーにする
+      if (shiftStart === shiftEnd) {
+        Alert.alert('入力エラー', '開始時刻と終了時刻が同じです');
         setSaving(false); return;
       }
       const wp = workplaces.find(w => w.id === shiftWorkplace);

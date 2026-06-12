@@ -365,6 +365,7 @@ export default function MoneyScreen() {
 
   async function handleSaveShift() {
     if (!sfWpId) { Alert.alert('入力エラー', 'バイト先を選択してください'); return; }
+    if (sfStart === sfEnd) { Alert.alert('入力エラー', '開始時刻と終了時刻が同じです'); return; }
     const wp = workplaces.find(w => w.id === sfWpId);
     if (!wp) return;
     setSfSaving(true);
