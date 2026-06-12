@@ -21,6 +21,11 @@
             "CFBundleURLSchemes": [
               "com.googleusercontent.apps.1051218592083-0u8o25sui598dsakvdnlmlp1obgmpaag"
             ]
+          },
+          {
+            "CFBundleURLSchemes": [
+              "camply"
+            ]
           }
         ],
         "ITSAppUsesNonExemptEncryption": false,
