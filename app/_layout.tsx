@@ -40,13 +40,16 @@ export default function RootLayout() {
       }
     }).catch(() => setSession(null));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (session?.user) {
         configureRevenueCat(session.user.id)
           .then(refreshEntitlements)
           .catch(() => {});
         fetchProfile().catch(() => {});
+      }
+      if (event === 'PASSWORD_RECOVERY') {
+        router.replace('/(auth)/reset-password' as never);
       }
     });
 

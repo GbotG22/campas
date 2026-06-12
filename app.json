@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Camply",
-    "slug": "campas",
+    "slug": "camply",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "campas",
+    "scheme": "camply",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",

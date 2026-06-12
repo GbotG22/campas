@@ -79,7 +79,9 @@ export default function SettingsScreen() {
     await refreshUser();
     const email = useAuthStore.getState().user?.email;
     if (!email) return;
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'camply://reset-password',
+    });
     if (error) {
       const msg = /rate.?limit|too.?many/i.test(error.message)
         ? 'リクエストが多すぎます。しばらくしてから再試行してください。'

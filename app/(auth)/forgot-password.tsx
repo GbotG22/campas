@@ -42,7 +42,9 @@ export default function ForgotPasswordScreen() {
     }
 
     setIsLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'camply://reset-password',
+    });
     setIsLoading(false);
 
     if (error) {
