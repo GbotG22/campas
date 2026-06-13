@@ -32,20 +32,27 @@ const ATT_BUTTONS = [
 export default function HomeScreen() {
   // フォーカス時に today を再計算する（日付跨ぎ対策）
   const [, forceUpdate] = useState(0);
-  useFocusEffect(useCallback(() => { forceUpdate(n => n + 1); }, []));
-
-  const today    = new Date();
-  const todayStr = localYMD(today);
-  const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
 
   const { displayName } = useProfileStore();
   const { monthlyTotal: subTotal }                          = useSubscriptions();
   const { events, getForDate: getEvents, getUpcoming, toggleDone } = useEvents();
   const { shifts, getForDate: getShifts, getNextShift }      = useShifts();
   const { getMonthlyTotal }                                 = useIncomes();
-  const { slots }                                           = useTimetable();
-  const { expenses }                                        = useExpenses();
-  const { record: recordAttendance, deleteRecord, getForDate: getAttendance } = useAttendance();
+  const { slots, refresh: refreshTimetable }                = useTimetable();
+  const { expenses, refresh: refreshExpenses }              = useExpenses();
+  const { record: recordAttendance, deleteRecord, getForDate: getAttendance, load: loadAttendance } = useAttendance();
+
+  // フォーカス取得時に最新データへ更新（他タブ・詳細画面での変更を反映）
+  useFocusEffect(useCallback(() => {
+    forceUpdate(n => n + 1);
+    refreshTimetable();
+    refreshExpenses();
+    loadAttendance();
+  }, [refreshTimetable, refreshExpenses, loadAttendance]));
+
+  const today    = new Date();
+  const todayStr = localYMD(today);
+  const todayDow = (() => { const d = today.getDay(); return d === 0 || d === 6 ? -1 : d - 1; })();
   const { nativeEvents, isConnected: nativeConnected } = useNativeCalendar();
 
   const hour     = today.getHours();

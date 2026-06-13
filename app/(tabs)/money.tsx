@@ -106,11 +106,14 @@ export default function MoneyScreen() {
   const isCurrentMonth = selYear === thisYear && selMonth === thisMonth;
 
   // ── データフック ───────────────────────────────────────────
-  const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses(selYear, selMonth);
+  const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal, refresh: refreshExpenses } = useExpenses(selYear, selMonth);
   const { names: catNames, getColor: getCatColor, fetch: refetchCategories } = useCategories();
 
-  // カテゴリ管理画面から戻ったときに最新カテゴリを反映する
-  useFocusEffect(useCallback(() => { refetchCategories(); }, [refetchCategories]));
+  // フォーカス復帰時に最新データへ更新（カテゴリ管理画面・他タブでの変更を反映）
+  useFocusEffect(useCallback(() => {
+    refetchCategories();
+    refreshExpenses();
+  }, [refetchCategories, refreshExpenses]));
   // カードタブ: 請求期間が2ヶ月にまたがるため前月分も取得して結合
   const prevMonthYear  = selMonth === 1 ? selYear - 1 : selYear;
   const prevMonthMonth = selMonth === 1 ? 12 : selMonth - 1;

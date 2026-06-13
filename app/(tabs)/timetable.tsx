@@ -45,7 +45,7 @@ export default function TimetableScreen() {
 
   const { slots, isLoading, isOffline, addSlot, deleteSlot, refresh } =
     useTimetable(semesterFilter);
-  const { getForDate, getStats, record } = useAttendance();
+  const { getForDate, getStats, record, load: loadAttendance } = useAttendance();
 
   // フォーカス時に today を再計算する（日付跨ぎ対策）
   const [, forceUpdate] = useState(0);
@@ -54,8 +54,9 @@ export default function TimetableScreen() {
   useFocusEffect(
     useCallback(() => {
       refresh();
+      loadAttendance();
       forceUpdate(n => n + 1);
-    }, [refresh]),
+    }, [refresh, loadAttendance]),
   );
 
   // ── 日付（毎レンダーで再計算） ───────────────────────────────

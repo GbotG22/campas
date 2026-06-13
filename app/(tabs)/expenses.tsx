@@ -44,11 +44,14 @@ function DaysRemainingBadge({ days }: { days: number }) {
 }
 
 export default function ExpensesScreen() {
-  const { expenses, isLoading: expLoading, addExpense, deleteExpense, monthlyTotal } = useExpenses();
+  const { expenses, isLoading: expLoading, addExpense, deleteExpense, monthlyTotal, refresh: refreshExpenses } = useExpenses();
   const { names: catNames, getColor: getCatColor, fetch: refetchCategories } = useCategories();
 
-  // カテゴリ管理画面から戻ったときに最新カテゴリを反映する
-  useFocusEffect(useCallback(() => { refetchCategories(); }, [refetchCategories]));
+  // フォーカス復帰時に最新データへ更新（カテゴリ管理画面・他タブでの変更を反映）
+  useFocusEffect(useCallback(() => {
+    refetchCategories();
+    refreshExpenses();
+  }, [refetchCategories, refreshExpenses]));
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subMonthlyTotal } = useSubscriptions();
 
   const [tab, setTab] = useState<TabType>('expenses');
