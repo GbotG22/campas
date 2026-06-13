@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView,
   Modal, Platform, ScrollView, StyleSheet, Text,
@@ -44,7 +45,10 @@ function DaysRemainingBadge({ days }: { days: number }) {
 
 export default function ExpensesScreen() {
   const { expenses, isLoading: expLoading, addExpense, deleteExpense, monthlyTotal } = useExpenses();
-  const { names: catNames, getColor: getCatColor } = useCategories();
+  const { names: catNames, getColor: getCatColor, fetch: refetchCategories } = useCategories();
+
+  // カテゴリ管理画面から戻ったときに最新カテゴリを反映する
+  useFocusEffect(useCallback(() => { refetchCategories(); }, [refetchCategories]));
   const { subscriptions, isLoading: subLoading, addSubscription, updateSubscription, deleteSubscription, monthlyTotal: subMonthlyTotal } = useSubscriptions();
 
   const [tab, setTab] = useState<TabType>('expenses');

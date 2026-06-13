@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import InlineDatePicker from '@/components/InlineDatePicker';
 import InlineTimePicker from '@/components/InlineTimePicker';
@@ -107,7 +107,10 @@ export default function MoneyScreen() {
 
   // ── データフック ───────────────────────────────────────────
   const { expenses, isLoading: expLoading, addExpense, updateExpense, deleteExpense, monthlyTotal: expTotal } = useExpenses(selYear, selMonth);
-  const { names: catNames, getColor: getCatColor } = useCategories();
+  const { names: catNames, getColor: getCatColor, fetch: refetchCategories } = useCategories();
+
+  // カテゴリ管理画面から戻ったときに最新カテゴリを反映する
+  useFocusEffect(useCallback(() => { refetchCategories(); }, [refetchCategories]));
   // カードタブ: 請求期間が2ヶ月にまたがるため前月分も取得して結合
   const prevMonthYear  = selMonth === 1 ? selYear - 1 : selYear;
   const prevMonthMonth = selMonth === 1 ? 12 : selMonth - 1;
@@ -588,7 +591,7 @@ export default function MoneyScreen() {
         <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />
       ) : (
         <View style={{ flex: 1 }}>
-          {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} />}
+          {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} getCatColor={getCatColor} />}
           {tab === 'subscriptions' && (
             <View style={{ flex: 1 }}>
               {/* サブスク / 固定費 内訳グラフ */}
@@ -1032,7 +1035,7 @@ export default function MoneyScreen() {
 // ─────────────────────────────────────────────────────────────
 // 支出タブ
 // ─────────────────────────────────────────────────────────────
-function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, overBudget, catData, maxCat, monthLabel, onEdit, onSetBudget }: {
+function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, overBudget, catData, maxCat, monthLabel, onEdit, onSetBudget, getCatColor }: {
   expenses: Database['public']['Tables']['expenses']['Row'][];
   monthlyTotal: number; budget: number | null; remaining: number | null;
   usageRate: number; overBudget: boolean;
@@ -1040,8 +1043,8 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
   monthLabel: string;
   onEdit: (item: Database['public']['Tables']['expenses']['Row']) => void;
   onSetBudget: () => void;
+  getCatColor: (name: string | null | undefined) => string;
 }) {
-  const { getColor: getCatColor } = useCategories();
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={styles.summaryCard}>
