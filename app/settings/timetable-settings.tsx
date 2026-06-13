@@ -137,7 +137,7 @@ export default function TimetableSettingsScreen() {
           )}
           {semesters.map(s => (
             <View key={s.id} style={styles.semesterRow}>
-              <TouchableOpacity style={styles.semesterCheck} onPress={() => setActive(s.id)}>
+              <TouchableOpacity style={styles.semesterCheck} onPress={async () => { await setActive(s.id); await assignUnassignedSlots(s.id); }}>
                 <View style={[styles.radio, s.is_active && styles.radioActive]}>
                   {s.is_active && <View style={styles.radioDot} />}
                 </View>
