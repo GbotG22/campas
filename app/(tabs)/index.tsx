@@ -13,6 +13,7 @@ import { useEvents, EVENT_CONFIG }   from '@/hooks/useEvents';
 import { useShifts }           from '@/hooks/useShifts';
 import { useIncomes }          from '@/hooks/useIncomes';
 import { useTimetable }        from '@/hooks/useTimetable';
+import { useSemesters }        from '@/hooks/useSemesters';
 import { useExpenses }         from '@/hooks/useExpenses';
 import { useAttendance, ATT_CONFIG } from '@/hooks/useAttendance';
 import { useTodayClassEvents } from '@/hooks/useClassEvents';
@@ -38,7 +39,13 @@ export default function HomeScreen() {
   const { events, getForDate: getEvents, getUpcoming, toggleDone } = useEvents();
   const { shifts, getForDate: getShifts, getNextShift }      = useShifts();
   const { getMonthlyTotal }                                 = useIncomes();
-  const { slots, refresh: refreshTimetable }                = useTimetable();
+  const { semesters, activeSemester }                       = useSemesters();
+  // 時間割タブと同じ学期フィルタ: 学期があればアクティブ学期で絞る（null=未割当）。
+  // 学期未設定なら undefined=全件表示（従来挙動を維持）。
+  const semesterFilter = semesters.length > 0
+    ? (activeSemester?.id ?? null)
+    : undefined;
+  const { slots, refresh: refreshTimetable }                = useTimetable(semesterFilter);
   const { expenses, refresh: refreshExpenses }              = useExpenses();
   const { record: recordAttendance, deleteRecord, getForDate: getAttendance, load: loadAttendance } = useAttendance();
 
