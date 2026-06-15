@@ -3,6 +3,7 @@ import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { COLORS, FONT } from '@/constants/theme';
 import { todayYMD } from '@/lib/dateUtils';
+import { isHoliday } from '@/lib/holidays';
 
 export interface CalendarMarker {
   date:  string;   // YYYY-MM-DD
@@ -19,7 +20,7 @@ interface Props {
   onNextMonth:    () => void;
 }
 
-const WEEK_HEADERS = ['月', '火', '水', '木', '金', '土', '日'];
+const WEEK_HEADERS = ['日', '月', '火', '水', '木', '金', '土'];
 const MONTH_NAMES  = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 export default function MonthCalendar({ year, month, selectedDate, onSelectDate, markers, onPrevMonth, onNextMonth }: Props) {
@@ -41,7 +42,7 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
   // ── カレンダーグリッドを構築 ─────────────────────────────
   const { weeks, daysInMonth } = useMemo(() => {
     const firstDow = new Date(year, month - 1, 1).getDay(); // 0=日
-    const pad      = firstDow === 0 ? 6 : firstDow - 1;    // 月始まりに変換
+    const pad      = firstDow;                              // 日曜始まり（0=日 → 先頭列）
     const days     = new Date(year, month, 0).getDate();
 
     const cells: (number | null)[] = [
@@ -91,8 +92,8 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
             style={[
               styles.weekHeader,
               { width: cellSize },
-              i === 5 && styles.satHeader,
-              i === 6 && styles.sunHeader,
+              i === 0 && styles.sunHeader,
+              i === 6 && styles.satHeader,
             ]}
           >{d}</Text>
         ))}
@@ -108,8 +109,10 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
             const isToday    = dateStr === TODAY;
             const isSelected = dateStr === selectedDate;
             const dots       = markerMap.get(dateStr) ?? [];
-            const isSat      = di === 5;
-            const isSun      = di === 6;
+            const isSun      = di === 0;
+            const isSat      = di === 6;
+            // 祝日は日曜と同じ赤系で表示する
+            const isHol      = isHoliday(dateStr);
 
             return (
               <TouchableOpacity
@@ -129,7 +132,7 @@ export default function MonthCalendar({ year, month, selectedDate, onSelectDate,
                     isToday    && styles.todayText,
                     isSelected && !isToday && styles.selectedText,
                     isSat && !isToday && !isSelected && styles.satText,
-                    isSun && !isToday && !isSelected && styles.sunText,
+                    (isSun || isHol) && !isToday && !isSelected && styles.sunText,
                   ]}>{day}</Text>
                 </View>
 

@@ -450,6 +450,15 @@ export default function MoneyScreen() {
     if (!cardName.trim() || isNaN(closing) || isNaN(payment)) {
       Alert.alert('入力エラー', 'カード名・締め日・支払日を入力してください'); return;
     }
+    // 当月払いなのに支払日が締め日以前 = 締める前に引き落とす矛盾設定を弾く
+    // （月末締め=31 として比較。例: 末日締め・当月25日払いは不可）
+    if (cardPayOffset === 0 && payment <= closing) {
+      Alert.alert(
+        '設定を確認してください',
+        '当月払いの場合、支払日は締め日より後にしてください。\n締め日より前に引き落とすことはできません。翌月払いに変更するか、支払日を見直してください。',
+      );
+      return;
+    }
     setCardSaving(true);
     try {
       if (editingCard) {
