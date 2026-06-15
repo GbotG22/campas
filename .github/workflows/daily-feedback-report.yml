@@ -27,8 +27,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Commit report
+      - name: Generate morning report
+        run: node scripts/daily-morning-report.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Commit reports
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'chore: daily feedback report [skip ci]'
-          file_pattern: docs/feedback-daily-report.md
+          commit_message: 'chore: daily reports [skip ci]'
+          file_pattern: docs/feedback-daily-report.md docs/camply-daily-report.md
