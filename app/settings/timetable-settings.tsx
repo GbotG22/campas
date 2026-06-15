@@ -9,6 +9,8 @@ import { router } from 'expo-router';
 import { COLORS } from '@/constants/theme';
 import { useSemesters }                      from '@/hooks/useSemesters';
 import { usePeriodSettings, PeriodConfig }   from '@/hooks/usePeriodSettings';
+import { useTimetable }                       from '@/hooks/useTimetable';
+import { rescheduleAllClassNotifications }    from '@/lib/notifications';
 import type { Database }                     from '@/types/database';
 
 type Semester = Database['public']['Tables']['semesters']['Row'];
@@ -30,6 +32,8 @@ export default function TimetableSettingsScreen() {
     setActive, assignUnassignedSlots,
   } = useSemesters();
   const { config, save: saveConfig, buildPeriods } = usePeriodSettings();
+  // 全学期分のスロットを取得（通知再予約用）。undefined = 学期フィルタなしで全件。
+  const { slots } = useTimetable();
 
   // ── 学期追加・編集モーダル ──────────────────────────────────
   const [semModalVisible,  setSemModalVisible]  = useState(false);
@@ -100,7 +104,10 @@ export default function TimetableSettingsScreen() {
   // ── 時限数変更 ────────────────────────────────────────────
   async function handlePeriodCountChange(count: number) {
     const newPeriods = buildPeriods(count, config.periods);
-    await saveConfig({ ...config, periodCount: count, periods: newPeriods });
+    const newConfig: PeriodConfig = { ...config, periodCount: count, periods: newPeriods };
+    await saveConfig(newConfig);
+    // 時限の構成が変わると授業通知の時刻も変わるため再予約する
+    rescheduleAllClassNotifications(slots, newConfig).catch(() => {});
   }
 
   // ── 授業時間変更 ──────────────────────────────────────────
@@ -108,7 +115,10 @@ export default function TimetableSettingsScreen() {
     const newPeriods = config.periods.map(p =>
       p.period === period ? { ...p, [field]: value } : p,
     );
-    await saveConfig({ ...config, periods: newPeriods });
+    const newConfig: PeriodConfig = { ...config, periods: newPeriods };
+    await saveConfig(newConfig);
+    // 開始時刻が変わると授業通知の発火時刻も変わるため、最新 config で再予約する
+    rescheduleAllClassNotifications(slots, newConfig).catch(() => {});
   }
 
   // ── 出席率基準変更 ────────────────────────────────────────
