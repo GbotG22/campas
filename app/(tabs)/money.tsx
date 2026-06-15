@@ -26,6 +26,7 @@ import { useWorkplaces, WORKPLACE_COLORS } from '@/hooks/useWorkplaces';
 import { daysUntilRenewal, getNextRenewalDate } from '@/lib/notifications';
 import { getNextPayday } from '@/lib/payPeriod';
 import { localYMD } from '@/lib/dateUtils';
+import { CARD_PRESETS, CardPreset } from '@/lib/cardPresets';
 import {
   ALL_MONEY_TABS, loadMoneyTabSettings, saveMoneyTabSettings,
   type MoneyTabKey,
@@ -913,6 +914,33 @@ export default function MoneyScreen() {
             <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
               <Text style={styles.inputLabel}>カード名 *</Text>
               <TextInput style={styles.input} placeholder="例: 楽天カード" value={cardName} onChangeText={setCardName} autoFocus />
+
+              {/* カード候補（締め日/支払日を初期入力。あくまで候補・編集可） */}
+              {!editingCard && (
+                <>
+                  <Text style={styles.inputLabel}>カード候補から選ぶ</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+                    {CARD_PRESETS.map((p: CardPreset) => (
+                      <TouchableOpacity
+                        key={p.name}
+                        onPress={() => {
+                          setCardName(p.name);
+                          setCardClosingDay(String(p.closingDay));
+                          setCardPayDay(String(p.paymentDay));
+                          setCardPayOffset(p.paymentMonthOffset);
+                        }}
+                        style={[styles.chip, { borderColor: COLORS.primary }]}
+                      >
+                        <Text style={styles.chipText}>{p.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  <Text style={{ fontSize: 11, color: COLORS.gray400, marginTop: -2 }}>
+                    ※ 一般的な目安です。実際の締め日・支払日はカードによって異なる場合があるため、ご自身で確認・修正してください。
+                  </Text>
+                </>
+              )}
+
               <Text style={styles.inputLabel}>カラー</Text>
               <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
                 {CARD_COLORS.map(c => (
@@ -1604,6 +1632,8 @@ function CardsTab({ cards, expenses, onEdit, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const today = new Date();
+  // タップで利用明細を開閉するカードID
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   if (cards.length === 0) {
     return (
@@ -1629,14 +1659,20 @@ function CardsTab({ cards, expenses, onEdit, onDelete }: {
         const payMonth = payDate.getMonth() + 1;
         const payDayNum = payDate.getDate();
 
+        const isExpanded = expandedId === card.id;
+        const sortedExpenses = [...cardExpenses].sort((a, b) => b.paid_at.localeCompare(a.paid_at));
+
         return (
-          <TouchableOpacity key={card.id} onPress={() => onEdit(card)}
+          <TouchableOpacity key={card.id} activeOpacity={0.9}
+            onPress={() => setExpandedId(isExpanded ? null : card.id)}
             style={{ backgroundColor: '#fff', borderRadius: RADIUS.lg, overflow: 'hidden', ...SHADOW.sm }}>
             {/* カードヘッダー */}
             <View style={{ backgroundColor: card.color, padding: SPACING.md }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{card.name}</Text>
-                <Ionicons name="card" size={24} color="rgba(255,255,255,0.7)" />
+                <TouchableOpacity onPress={() => onEdit(card)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>編集</Text>
+                </TouchableOpacity>
               </View>
               <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 6 }}>
                 {closingLabel}締め → {card.payment_month_offset === 0 ? '当月' : '翌月'}{payLabel}払い
@@ -1654,9 +1690,35 @@ function CardsTab({ cards, expenses, onEdit, onDelete }: {
                   <Text style={{ fontSize: 14, fontWeight: '600', color: card.color }}>{payMonth}月{payDayNum}日</Text>
                 </View>
               </View>
-              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>
-                集計期間: {startYMD} ～ {endYMD}（{cardExpenses.length}件）
-              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 11, color: COLORS.gray400 }}>
+                  集計期間: {startYMD} ～ {endYMD}（{cardExpenses.length}件）
+                </Text>
+                <Text style={{ fontSize: 11, color: card.color, fontWeight: '700' }}>
+                  {isExpanded ? '明細を閉じる ▲' : '明細を見る ▼'}
+                </Text>
+              </View>
+
+              {/* 利用明細（タップで開閉） */}
+              {isExpanded && (
+                <View style={{ borderTopWidth: 1, borderTopColor: COLORS.gray100, paddingTop: 8, gap: 8 }}>
+                  {sortedExpenses.length === 0 ? (
+                    <Text style={{ fontSize: 13, color: COLORS.gray400, paddingVertical: 6 }}>この期間の利用はありません</Text>
+                  ) : (
+                    sortedExpenses.map(e => (
+                      <View key={e.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ fontSize: 14, color: COLORS.gray900 }} numberOfLines={1}>{e.title}</Text>
+                          <Text style={{ fontSize: 11, color: COLORS.gray400 }}>
+                            {e.paid_at}{e.category ? ` ・ ${e.category}` : ''}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.gray900 }}>¥{e.amount.toLocaleString()}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
             </View>
           </TouchableOpacity>
         );

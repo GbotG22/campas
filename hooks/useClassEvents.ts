@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth.store';
+import { cancelClassOccurrence, scheduleClassOccurrence } from '@/lib/notifications';
+import { getDetailedNotificationSettings } from '@/lib/notificationSettings';
+import type { PeriodConfig } from '@/hooks/usePeriodSettings';
 import type { Database } from '@/types/database';
+
+type TimetableSlot = Database['public']['Tables']['timetable_slots']['Row'];
 
 export type ClassEvent  = Database['public']['Tables']['class_events']['Row'];
 type InsertClassEvent   = Database['public']['Tables']['class_events']['Insert'];
@@ -84,7 +89,12 @@ export function useClassEvents(slotId?: string) {
  * ホーム画面「今日の授業」で使用。class_events を単一の真実とすることで、
  * 時間割画面と表示が常に一致する。
  */
-export function useTodayClassEvents(slotIds: string[], date: string) {
+export function useTodayClassEvents(
+  slotIds: string[],
+  date: string,
+  slots?: TimetableSlot[],
+  periodConfig?: PeriodConfig,
+) {
   const { user } = useAuthStore();
   const [todayEvents, setTodayEvents] = useState<Map<string, ClassEvent>>(new Map());
 
@@ -104,12 +114,21 @@ export function useTodayClassEvents(slotIds: string[], date: string) {
     if (!user) return;
     const existing = todayEvents.get(slotId);
     if (existing?.event_type === 'cancel') {
+      // 休講を解除 → その日の授業通知を再予約（未来時刻・通知ONのときのみ）
       await supabase.from('class_events').delete().eq('id', existing.id);
+      const slot = slots?.find(s => s.id === slotId);
+      if (slot && periodConfig) {
+        getDetailedNotificationSettings()
+          .then(s => scheduleClassOccurrence(slot, periodConfig, s.classMinutes, new Date(`${date}T00:00:00`)))
+          .catch(() => {});
+      }
     } else {
       if (existing) await supabase.from('class_events').delete().eq('id', existing.id);
       await supabase.from('class_events').insert({
         user_id: user.id, slot_id: slotId, date, event_type: 'cancel', title: '休講',
       });
+      // 休講登録 → その日の授業通知だけをキャンセル
+      cancelClassOccurrence(slotId, date).catch(() => {});
     }
     refresh();
   };

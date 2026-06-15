@@ -353,7 +353,12 @@ export default function TimetableScreen() {
                       )}
 
                       <Text
-                        style={[styles.cellSubject, { color: isCancel ? COLORS.gray400 : (slot.color ?? COLORS.primary) }]}
+                        style={[
+                          styles.cellSubject,
+                          { color: isCancel ? COLORS.gray400 : (slot.color ?? COLORS.primary) },
+                          // 休/補バッジ（左上）と科目名が重ならないよう先頭を下げる
+                          (isCancel || isMakeup) && styles.cellSubjectWithBadge,
+                        ]}
                         numberOfLines={2}
                       >
                         {slot.subject_name}
@@ -601,6 +606,7 @@ const styles = StyleSheet.create({
 
   // セル内テキスト（視認性向上）
   cellSubject: { fontSize: 11, fontWeight: '700', lineHeight: 14 },
+  cellSubjectWithBadge: { marginTop: 18 },
   cellRoom:    { fontSize: 9,  color: COLORS.gray500, marginTop: 2 },
   cellTeacher: { fontSize: 9,  color: COLORS.gray400 },
 

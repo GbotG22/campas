@@ -2,7 +2,8 @@
 // 他モジュールより先に評価させるため先頭で import する
 import '@/lib/fontScaling';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,7 +15,9 @@ import {
   initNotificationHandler,
   registerNotificationCategories,
   requestNotificationPermission,
+  refreshClassNotificationsFromDB,
 } from '@/lib/notifications';
+import { todayYMD } from '@/lib/dateUtils';
 import { useAuthStore } from '@/stores/auth.store';
 import { useEntitlementStore } from '@/stores/entitlement.store';
 import { useProfileStore } from '@/stores/profile.store';
@@ -59,6 +62,23 @@ export default function RootLayout() {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // 授業通知の補充（個別DATE方式）。日付が変わったタイミングのみ再予約し、
+  // ウィンドウ外の先の週を補充する。起動時にも一度走らせる。
+  const lastClassRefreshDate = useRef<string>('');
+  useEffect(() => {
+    const run = () => {
+      const today = todayYMD();
+      if (lastClassRefreshDate.current === today) return;
+      lastClassRefreshDate.current = today;
+      refreshClassNotificationsFromDB().catch(() => {});
+    };
+    run();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') run();
+    });
+    return () => sub.remove();
   }, []);
 
   // パスワードリセット等のディープリンク処理

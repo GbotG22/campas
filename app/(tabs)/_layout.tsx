@@ -1,11 +1,17 @@
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { PixelRatio } from 'react-native';
 
 import { useAuthStore } from '@/stores/auth.store';
 import { COLORS } from '@/constants/theme';
 
 export default function TabsLayout() {
   const { session, isLoading: authLoading } = useAuthStore();
+  // Dynamic Type 対策: OSの文字倍率（最大1.3でクランプ）に応じてタブバー高さを伸ばし
+  // ラベルの見切れを防ぐ。
+  const fontScale = Math.min(PixelRatio.getFontScale(), 1.3);
+  const tabBarHeight = Math.round(60 * fontScale);
+  const tabBarPaddingBottom = Math.round(6 * fontScale);
 
   // ルートレイアウトがナビゲーション制御するので、ローディング中は何も描画しない
   if (authLoading) return null;
@@ -25,9 +31,9 @@ export default function TabsLayout() {
           backgroundColor: COLORS.white,
           borderTopColor:  COLORS.gray100,
           borderTopWidth:  1,
-          paddingBottom:   6,
+          paddingBottom:   tabBarPaddingBottom,
           paddingTop:      4,
-          height:          60,
+          height:          tabBarHeight,
         },
         tabBarLabelStyle: {
           fontSize:   11,

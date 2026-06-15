@@ -5,6 +5,9 @@
  */
 import type { Database } from '@/types/database';
 import { getDetailedNotificationSettings, MinuteOption } from '@/lib/notificationSettings';
+import { supabase } from '@/lib/supabase';
+import { localYMD } from '@/lib/dateUtils';
+import { DEFAULT_CONFIG } from '@/hooks/usePeriodSettings';
 
 type Assignment     = Database['public']['Tables']['assignments']['Row'];
 type Subscription   = Database['public']['Tables']['subscriptions']['Row'];
@@ -16,9 +19,6 @@ type TimetableSlot  = Database['public']['Tables']['timetable_slots']['Row'];
 
 interface PeriodTime   { period: number; start: string; end: string; }
 interface PeriodConfig { periods: PeriodTime[]; }
-
-// app day_of_week (0=Mon...4=Fri) → expo weekday (1=Sun, 2=Mon...7=Sat)
-const APP_DAY_TO_EXPO_WEEKDAY: Record<number, number> = { 0: 2, 1: 3, 2: 4, 3: 5, 4: 6 };
 
 // ── イベント通知の対象タイプ ──────────────────────────────────────
 const NOTIFIABLE_EVENT_TYPES = ['assignment', 'test', 'report'] as const;
@@ -651,59 +651,124 @@ export async function rescheduleAllFixedExpenseNotifications(fixedExpenses: Fixe
 }
 
 // ═══════════════════════════════════════════════════════════
-// 授業通知（毎週繰り返し）
+// 授業通知（個別DATE方式）
+//
+// 旧方式は WEEKLY 繰り返し1本（class_${slotId}）だったが、休講日の
+// 個別抑制ができないため、各回を個別の DATE 通知として予約する。
+//   identifier: class_${slotId}_${YYYYMMDD}
+// 予約数は CLASS_BUDGET 件を上限とし、スロット数から動的に
+// 予約週数（1〜4週）を決める。休講日（class_events.cancel）はスキップする。
 // ═══════════════════════════════════════════════════════════
 
-export async function scheduleClassNotification(
+/** 授業通知に割り当てる予約数の上限（iOS全体64件のうち授業分の目安） */
+const CLASS_BUDGET = 40;
+const MAX_WEEKS    = 4;
+
+/** Date → "YYYYMMDD"（identifier 用） */
+function ymdCompact(d: Date): string {
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** app day_of_week(0=Mon..4=Fri) の、from 以降で最も近い日付（時刻0:00） */
+function nextDateForAppDay(appDay: number, from: Date): Date | null {
+  const jsDay = appDay + 1; // 0(Mon)->1(Mon as JS), ... 4(Fri)->5
+  if (jsDay < 1 || jsDay > 5) return null;
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  const diff = (jsDay - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+/**
+ * 単一の授業回（指定日）の通知を予約する。
+ * 過去・時限未設定・通知オフのときは何もせず false を返す。
+ */
+export async function scheduleClassOccurrence(
   slot: TimetableSlot,
   periodConfig: PeriodConfig,
   classMinutes: MinuteOption,
-): Promise<void> {
-  if (classMinutes === 0) return;
+  date: Date,
+): Promise<boolean> {
+  if (classMinutes === 0) return false;
   const N = getNotifications();
-  if (!N) return;
+  if (!N) return false;
 
   const pt = periodConfig.periods.find(p => p.period === slot.period);
-  if (!pt?.start) return;
-
-  const weekday = APP_DAY_TO_EXPO_WEEKDAY[slot.day_of_week];
-  if (!weekday) return;
+  if (!pt?.start) return false;
 
   const [hStr, mStr] = pt.start.split(':');
-  const totalMinutes = parseInt(hStr, 10) * 60 + parseInt(mStr, 10) - classMinutes;
-  if (totalMinutes < 0) return;
+  const trigger = new Date(date);
+  trigger.setHours(parseInt(hStr, 10), parseInt(mStr, 10), 0, 0);
+  trigger.setMinutes(trigger.getMinutes() - classMinutes);
+  if (trigger <= new Date()) return false; // 過去はスキップ
 
-  const hour   = Math.floor(totalMinutes / 60);
-  const minute = totalMinutes % 60;
   const minuteLabel = classMinutes >= 60 ? `${classMinutes / 60}時間` : `${classMinutes}分`;
   const endStr = pt.end ?? '';
 
   try {
     await N.scheduleNotificationAsync({
-      identifier: `class_${slot.id}`,
+      identifier: `class_${slot.id}_${ymdCompact(date)}`,
       content: {
         title: `授業開始${minuteLabel}前`,
         body:  `${slot.subject_name}\n${slot.period}限（${pt.start}〜${endStr}）\n\n${minuteLabel}後に開始します`,
         sound: true,
       },
-      trigger: {
-        type:    N.SchedulableTriggerInputTypes.WEEKLY,
-        weekday,
-        hour,
-        minute,
-      },
+      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: trigger },
     });
-  } catch { /* ignore */ }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-export async function cancelClassNotification(id: string): Promise<void> {
+/** 指定スロット・指定日（YYYY-MM-DD）の授業通知を1件だけキャンセル（休講登録時） */
+export async function cancelClassOccurrence(slotId: string, dateYMD: string): Promise<void> {
   try {
     const N = getNotifications();
     if (!N) return;
-    await N.cancelScheduledNotificationAsync(`class_${id}`);
+    const compact = dateYMD.replace(/-/g, '');
+    await N.cancelScheduledNotificationAsync(`class_${slotId}_${compact}`);
   } catch { /* ignore */ }
 }
 
+/** 指定スロットの授業通知を全回キャンセル（スロット削除・通知オフ時） */
+export async function cancelClassNotification(slotId: string): Promise<void> {
+  try {
+    const N = getNotifications();
+    if (!N) return;
+    const scheduled = await N.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter(n => n.identifier.startsWith(`class_${slotId}`))
+        .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
+    );
+  } catch { /* ignore */ }
+}
+
+/** 指定スロット群の「今日以降の休講日」集合（key = `${slotId}_${YYYY-MM-DD}`）を取得 */
+async function fetchCancelledClassDates(slotIds: string[]): Promise<Set<string>> {
+  const set = new Set<string>();
+  if (slotIds.length === 0) return set;
+  try {
+    const { data } = await supabase
+      .from('class_events')
+      .select('slot_id,date,event_type')
+      .in('slot_id', slotIds)
+      .eq('event_type', 'cancel')
+      .gte('date', localYMD(new Date()));
+    data?.forEach(e => set.add(`${e.slot_id}_${e.date}`));
+  } catch { /* ignore */ }
+  return set;
+}
+
+/**
+ * 授業通知を全再予約する（個別DATE方式）。
+ * - 既存の class_ 通知（旧WEEKLY含む）を全削除してから再予約 → 旧方式から自動移行
+ * - スロット数から予約週数を算出（CLASS_BUDGET 件以内）
+ * - 休講日（class_events.cancel）はスキップ
+ * - slots は呼び出し側でアクティブ学期に絞って渡すこと
+ */
 export async function rescheduleAllClassNotifications(
   slots: TimetableSlot[],
   periodConfig: PeriodConfig,
@@ -712,16 +777,75 @@ export async function rescheduleAllClassNotifications(
     if (!await hasNotificationPermission()) return;
     const N = getNotifications();
     if (!N) return;
-    const settings = await getDetailedNotificationSettings();
+
+    // 旧WEEKLY含む既存の授業通知を一括削除（二重通知防止・移行）
     const scheduled = await N.getAllScheduledNotificationsAsync();
     await Promise.all(
       scheduled
         .filter(n => n.identifier.startsWith('class_'))
         .map(n => N.cancelScheduledNotificationAsync(n.identifier)),
     );
-    if (settings.classMinutes === 0) return;
-    for (const slot of slots) {
-      await scheduleClassNotification(slot, periodConfig, settings.classMinutes);
+
+    const settings = await getDetailedNotificationSettings();
+    if (settings.classMinutes === 0 || slots.length === 0) return;
+
+    const cancelled = await fetchCancelledClassDates(slots.map(s => s.id));
+
+    // 予約週数 = floor(予算 / スロット数) を 1〜MAX_WEEKS にクランプ
+    const weeks = Math.max(1, Math.min(MAX_WEEKS, Math.floor(CLASS_BUDGET / slots.length)));
+
+    // 近い週から全スロットを埋める（予算超過時は近い日付を優先）
+    let count = 0;
+    for (let w = 0; w < weeks && count < CLASS_BUDGET; w++) {
+      for (const slot of slots) {
+        if (count >= CLASS_BUDGET) break;
+        const base = nextDateForAppDay(slot.day_of_week, new Date());
+        if (!base) continue;
+        const date = new Date(base);
+        date.setDate(date.getDate() + 7 * w);
+        if (cancelled.has(`${slot.id}_${localYMD(date)}`)) continue;
+        const ok = await scheduleClassOccurrence(slot, periodConfig, settings.classMinutes, date);
+        if (ok) count++;
+      }
     }
+  } catch { /* ignore */ }
+}
+
+/**
+ * DBからアクティブ学期のスロット・時限設定を取得して授業通知を再予約する。
+ * アプリ起動/復帰時の補充用（フック非依存で呼べる）。
+ */
+export async function refreshClassNotificationsFromDB(): Promise<void> {
+  try {
+    if (!await hasNotificationPermission()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 学期（アクティブ判定）
+    const { data: sems } = await supabase
+      .from('semesters')
+      .select('id,is_active')
+      .eq('user_id', user.id);
+    const hasSemesters = (sems?.length ?? 0) > 0;
+    const active = sems?.find(s => s.is_active);
+
+    // スロット（学期があればアクティブ学期のみ／無ければ全件＝従来挙動）
+    let q = supabase.from('timetable_slots').select('*').eq('user_id', user.id);
+    if (hasSemesters) {
+      q = active ? q.eq('semester_id', active.id) : q.is('semester_id', null);
+    }
+    const { data: slots } = await q;
+
+    // 時限設定
+    const { data: ps } = await supabase
+      .from('period_settings')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    const periodConfig: PeriodConfig = ps
+      ? { periods: ps.periods as unknown as PeriodTime[] }
+      : { periods: DEFAULT_CONFIG.periods };
+
+    await rescheduleAllClassNotifications(slots ?? [], periodConfig);
   } catch { /* ignore */ }
 }

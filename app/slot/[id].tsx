@@ -17,8 +17,7 @@ import { useClassSchedules }                          from '@/hooks/useClassSche
 import { usePeriodSettings }                          from '@/hooks/usePeriodSettings';
 import { useAuthStore }                               from '@/stores/auth.store';
 import { supabase }                                   from '@/lib/supabase';
-import { cancelClassNotification, scheduleClassNotification } from '@/lib/notifications';
-import { getDetailedNotificationSettings } from '@/lib/notificationSettings';
+import { cancelClassNotification, refreshClassNotificationsFromDB } from '@/lib/notifications';
 import { localYMD }                                   from '@/lib/dateUtils';
 import type { Database }                              from '@/types/database';
 
@@ -86,9 +85,8 @@ export default function SlotDetailScreen() {
     if (!error && data) {
       setSlot(data);
       setEditVisible(false);
-      getDetailedNotificationSettings().then(s => {
-        scheduleClassNotification(data, config, s.classMinutes).catch(() => {});
-      }).catch(() => {});
+      // 時限・科目変更を反映するため授業通知をDBから再予約（休講日はスキップ）
+      refreshClassNotificationsFromDB().catch(() => {});
     } else Alert.alert('エラー', '更新できませんでした');
   }
 

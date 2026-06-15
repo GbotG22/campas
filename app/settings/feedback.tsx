@@ -1,10 +1,12 @@
 import {
   Alert,
+  Keyboard,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -108,9 +110,13 @@ export default function FeedbackScreen() {
       <Header />
       <ScrollView
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+       {/* 何もない所をタップでキーボードを閉じる（複数行欄はEnter=改行を維持） */}
+       <TouchableWithoutFeedback accessible={false} onPress={Keyboard.dismiss}>
+        <View>
         {/* 説明文 */}
         <View style={styles.descCard}>
           <Text style={styles.descText}>
@@ -181,6 +187,8 @@ export default function FeedbackScreen() {
         </TouchableOpacity>
 
         <View style={{ height: SPACING.xl }} />
+        </View>
+       </TouchableWithoutFeedback>
       </ScrollView>
     </SafeAreaView>
   );

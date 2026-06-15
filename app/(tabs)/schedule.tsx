@@ -458,9 +458,16 @@ export default function ScheduleScreen() {
                     ],
                   );
                 } else {
-                  // Premium 未加入の場合はペイウォールへ
+                  // Premium 未加入の場合は、まず機能内容を案内してからペイウォールへ
                   if (!isPremium) {
-                    router.push('/paywall/premium' as never);
+                    Alert.alert(
+                      'Googleカレンダー連携（Premium）',
+                      'Googleカレンダー連携は Premium プランで今すぐご利用いただけます。\n\n連携すると、Googleカレンダーの予定をCamplyに表示できます（読み取り専用）。',
+                      [
+                        { text: '今はしない', style: 'cancel' },
+                        { text: 'Premiumを見る', onPress: () => router.push('/paywall/premium' as never) },
+                      ],
+                    );
                     return;
                   }
                   gcalSignIn();

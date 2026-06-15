@@ -14,6 +14,7 @@ import { useShifts }           from '@/hooks/useShifts';
 import { useIncomes }          from '@/hooks/useIncomes';
 import { useTimetable }        from '@/hooks/useTimetable';
 import { useSemesters }        from '@/hooks/useSemesters';
+import { usePeriodSettings }   from '@/hooks/usePeriodSettings';
 import { useExpenses }         from '@/hooks/useExpenses';
 import { useAttendance, ATT_CONFIG } from '@/hooks/useAttendance';
 import { useTodayClassEvents } from '@/hooks/useClassEvents';
@@ -109,7 +110,8 @@ export default function HomeScreen() {
 
   // 今日の休講・補講（時間割で登録されたもの）を授業枠に紐づけて表示する
   const todaySlotIds = useMemo(() => todaySlots.map(s => s.id), [todaySlots]);
-  const { todayEvents: todayClassEvents, toggleCancel } = useTodayClassEvents(todaySlotIds, todayStr);
+  const { config: periodConfig } = usePeriodSettings();
+  const { todayEvents: todayClassEvents, toggleCancel } = useTodayClassEvents(todaySlotIds, todayStr, todaySlots, periodConfig);
 
   // ── 締切（今日 / 明日以降） ───────────────────────────────
   const upcoming          = getUpcoming(7);
