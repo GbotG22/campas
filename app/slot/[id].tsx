@@ -249,7 +249,7 @@ export default function SlotDetailScreen() {
 
               {/* 内訳 */}
               <View style={styles.attBreakdown}>
-                {(['present','late','early_leave','absent'] as AttendanceStatus[]).map(s => {
+                {(['present','late','early_leave','absent','official_absent'] as AttendanceStatus[]).map(s => {
                   const cnt = slotRecords.filter(r => r.status === s).length;
                   if (cnt === 0) return null;
                   return (
@@ -411,7 +411,7 @@ export default function SlotDetailScreen() {
             <InlineDatePicker label="日付" value={attDate} onChange={setAttDate} />
             <Text style={styles.formLabel}>状態</Text>
             <View style={styles.statusBtnRow}>
-              {(['present','late','early_leave','absent'] as AttendanceStatus[]).map(s => (
+              {(['present','late','early_leave','absent','official_absent'] as AttendanceStatus[]).map(s => (
                 <TouchableOpacity
                   key={s}
                   style={[styles.statusBtn, attStatus === s && { backgroundColor: ATT_CONFIG[s].color, borderColor: ATT_CONFIG[s].color }]}

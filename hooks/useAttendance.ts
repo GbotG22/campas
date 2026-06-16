@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Database } from '@/types/database';
 
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'early_leave';
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'early_leave' | 'official_absent';
 export type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row'];
 
 export interface AttendanceStats {
@@ -27,6 +27,7 @@ export const ATT_CONFIG: Record<AttendanceStatus, { label: string; color: string
   late:        { label: '遅刻',  short: '遅', color: '#F59E0B', bg: '#FFFBEB' },
   absent:      { label: '欠席',  short: '欠', color: '#EF4444', bg: '#FEF2F2' },
   early_leave: { label: '早退',  short: '早', color: '#8B5CF6', bg: '#F5F3FF' },
+  official_absent: { label: '公欠', short: '公', color: '#3B82F6', bg: '#EFF6FF' },
 };
 
 const cacheKey = (uid: string) => `campas_attendance_v2_${uid}`;
@@ -165,14 +166,16 @@ export function useAttendance() {
     requiredRate = 80,
     totalSessions = 15,   // ← 学期の総授業回数（デフォルト15）
   ): AttendanceStats => {
-    const slotRecs   = records.filter(r => r.slot_id === slotId);
+    const allRecs    = records.filter(r => r.slot_id === slotId);
+    // 公欠（official_absent）は免除扱い: 出席率の分母・欠席カウントから除外する
+    const slotRecs   = allRecs.filter(r => r.status !== 'official_absent');
     const total      = slotRecs.length;
     const present    = slotRecs.filter(r => r.status === 'present').length;
     const late       = slotRecs.filter(r => r.status === 'late').length;
     const absent     = slotRecs.filter(r => r.status === 'absent').length;
     const earlyLeave = slotRecs.filter(r => r.status === 'early_leave').length;
 
-    // 出席率計算：遅刻・早退は0.5出席扱い
+    // 出席率計算：遅刻・早退は0.5出席扱い（公欠は分母に含めない）
     const attended = present + late * 0.5 + earlyLeave * 0.5;
     const rate     = total > 0 ? Math.round((attended / total) * 100) : null;
 

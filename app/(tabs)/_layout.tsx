@@ -1,17 +1,20 @@
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { PixelRatio } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '@/stores/auth.store';
 import { COLORS } from '@/constants/theme';
 
 export default function TabsLayout() {
   const { session, isLoading: authLoading } = useAuthStore();
-  // Dynamic Type 対策: OSの文字倍率（最大1.3でクランプ）に応じてタブバー高さを伸ばし
-  // ラベルの見切れを防ぐ。
+  const insets = useSafeAreaInsets();
+  // タブバーの見切れ/はみ出し対策:
+  // ・下部セーフエリア(insets.bottom: ホームインジケーター領域)を高さ・余白に加算する
+  // ・OSの文字倍率(最大1.3でクランプ)にも追従させ、ラベルの縦方向の見切れを防ぐ
   const fontScale = Math.min(PixelRatio.getFontScale(), 1.3);
-  const tabBarHeight = Math.round(60 * fontScale);
-  const tabBarPaddingBottom = Math.round(6 * fontScale);
+  const tabBarHeight = Math.round(56 * fontScale) + insets.bottom;
+  const tabBarPaddingBottom = Math.round(6 * fontScale) + insets.bottom;
 
   // ルートレイアウトがナビゲーション制御するので、ローディング中は何も描画しない
   if (authLoading) return null;

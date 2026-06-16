@@ -40,7 +40,7 @@ export default function HomeScreen() {
   const { events, getForDate: getEvents, getUpcoming, toggleDone } = useEvents();
   const { shifts, getForDate: getShifts, getNextShift }      = useShifts();
   const { getMonthlyTotal }                                 = useIncomes();
-  const { semesters, activeSemester }                       = useSemesters();
+  const { semesters, activeSemester, refresh: refreshSemesters } = useSemesters();
   // 時間割タブと同じ学期フィルタ: 学期があればアクティブ学期で絞る（null=未割当）。
   // 学期未設定なら undefined=全件表示（従来挙動を維持）。
   const semesterFilter = semesters.length > 0
@@ -51,12 +51,15 @@ export default function HomeScreen() {
   const { record: recordAttendance, deleteRecord, getForDate: getAttendance, load: loadAttendance } = useAttendance();
 
   // フォーカス取得時に最新データへ更新（他タブ・詳細画面での変更を反映）
+  // refreshSemesters: 時間割タブで学期を切り替えた後にホームへ戻った際、
+  // activeSemester→semesterFilter を更新し、time表示を即座に正しい学期へ反映する。
   useFocusEffect(useCallback(() => {
     forceUpdate(n => n + 1);
+    refreshSemesters();
     refreshTimetable();
     refreshExpenses();
     loadAttendance();
-  }, [refreshTimetable, refreshExpenses, loadAttendance]));
+  }, [refreshSemesters, refreshTimetable, refreshExpenses, loadAttendance]));
 
   const today    = new Date();
   const todayStr = localYMD(today);

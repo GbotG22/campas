@@ -11,6 +11,34 @@ export type Database = {
   public: {
     Tables: {
 
+      accounts: {
+        Row: {
+          id:         string;
+          user_id:    string;
+          name:       string;
+          balance:    number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?:         string;
+          user_id:     string;
+          name?:       string;
+          balance?:    number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?:         string;
+          user_id?:    string;
+          name?:       string;
+          balance?:    number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
       // ──────────────────────────────────────────
       // 汎用予定
       // ──────────────────────────────────────────
@@ -446,7 +474,7 @@ export type Database = {
           slot_id:    string;
           user_id:    string;
           date:       string;
-          status:     'present' | 'absent' | 'late' | 'early_leave';
+          status:     'present' | 'absent' | 'late' | 'early_leave' | 'official_absent';
           note:       string | null;
           created_at: string;
         };
@@ -455,7 +483,7 @@ export type Database = {
           slot_id:    string;
           user_id:    string;
           date:       string;
-          status:     'present' | 'absent' | 'late' | 'early_leave';
+          status:     'present' | 'absent' | 'late' | 'early_leave' | 'official_absent';
           note?:      string | null;
           created_at?: string;
         };
@@ -464,7 +492,7 @@ export type Database = {
           slot_id?:   string;
           user_id?:   string;
           date?:      string;
-          status?:    'present' | 'absent' | 'late' | 'early_leave';
+          status?:    'present' | 'absent' | 'late' | 'early_leave' | 'official_absent';
           note?:      string | null;
           created_at?: string;
         };

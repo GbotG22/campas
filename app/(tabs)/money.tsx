@@ -17,6 +17,7 @@ import { useCreditCards, getClosingPeriod, getPaymentDate, CreditCard } from '@/
 import { useFixedExpenses, FIXED_EXPENSE_CATEGORIES, getCategoryDef, getNextPaymentDate, type FixedExpense, type FixedExpenseCategory } from '@/hooks/useFixedExpenses';
 import { scheduleFixedExpenseNotification, cancelFixedExpenseNotification } from '@/lib/notifications';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories, FALLBACK_CATEGORY } from '@/hooks/useCategories';
 import { useIncomes, INCOME_TYPE_CONFIG } from '@/hooks/useIncomes';
 import { useShifts, calcWage, formatMinutes, calcWorkMinutes } from '@/hooks/useShifts';
@@ -180,6 +181,21 @@ export default function MoneyScreen() {
     if (isNaN(v) || v <= 0) { Alert.alert('入力エラー', '正しい金額を入力してください'); return; }
     await AsyncStorage.setItem(BUDGET_KEY, String(v));
     setBudget(v); setBudgetModal(false);
+  }
+  async function clearBudget() {
+    await AsyncStorage.removeItem(BUDGET_KEY);
+    setBudget(null); setBudgetInput(''); setBudgetModal(false);
+  }
+
+  // ── 口座残高 (支出タブ・手動入力) ─────────────────────────
+  const { balance, setBalance } = useAccounts();
+  const [balanceModal, setBalanceModal] = useState(false);
+  const [balanceInput, setBalanceInput] = useState('');
+  async function saveBalance() {
+    const v = parseInt(balanceInput, 10);
+    if (isNaN(v) || v < 0) { Alert.alert('入力エラー', '残高を正しく入力してください'); return; }
+    await setBalance(v);
+    setBalanceModal(false);
   }
 
   // ── 支出 追加 / 編集モーダル ──────────────────────────────
@@ -604,7 +620,7 @@ export default function MoneyScreen() {
         <ActivityIndicator style={{ flex: 1 }} color={COLORS.primary} />
       ) : (
         <View style={{ flex: 1 }}>
-          {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} getCatColor={getCatColor} />}
+          {tab === 'expenses'      && <ExpensesTab expenses={expenses} monthlyTotal={expTotal} budget={budget} remaining={remaining} usageRate={usageRate} overBudget={overBudget} catData={catData} maxCat={maxCat} monthLabel={selMonthLabel} onEdit={openEditExp} onSetBudget={() => { setBudgetInput(''); setBudgetModal(true); }} getCatColor={getCatColor} balance={balance} onSetBalance={() => { setBalanceInput(balance != null ? String(balance) : ''); setBalanceModal(true); }} />}
           {tab === 'subscriptions' && (
             <View style={{ flex: 1 }}>
               {/* サブスク / 固定費 内訳グラフ */}
@@ -645,6 +661,31 @@ export default function MoneyScreen() {
           <View style={{ padding: 24 }}>
             <Text style={styles.inputLabel}>月の予算（円）</Text>
             <TextInput style={[styles.input, { fontSize: 28, fontWeight: '800', textAlign: 'center' }]} placeholder="例: 30000" value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" autoFocus />
+            {budget !== null && (
+              <TouchableOpacity
+                style={{ marginTop: 24, alignItems: 'center' }}
+                onPress={() => Alert.alert('予算を解除', '設定中の月予算を解除しますか？', [
+                  { text: 'キャンセル', style: 'cancel' },
+                  { text: '解除する', style: 'destructive', onPress: clearBudget },
+                ])}
+              >
+                <Text style={{ color: '#EF4444', fontWeight: '600' }}>予算を解除する</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* 口座残高 入力 */}
+      <Modal visible={balanceModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modal}>
+          <ModalHeader title="口座残高を入力" onCancel={() => setBalanceModal(false)} onSave={saveBalance} saveLabel="保存" />
+          <View style={{ padding: 24 }}>
+            <Text style={styles.inputLabel}>現在の口座残高（円）</Text>
+            <TextInput style={[styles.input, { fontSize: 28, fontWeight: '800', textAlign: 'center' }]} placeholder="例: 50000" value={balanceInput} onChangeText={setBalanceInput} keyboardType="number-pad" autoFocus />
+            <Text style={{ marginTop: 12, fontSize: 12, color: COLORS.gray400 }}>
+              ※ 手動入力です。PayPay・銀行の自動連携は行いません。
+            </Text>
           </View>
         </SafeAreaView>
       </Modal>
@@ -1075,7 +1116,7 @@ export default function MoneyScreen() {
 // ─────────────────────────────────────────────────────────────
 // 支出タブ
 // ─────────────────────────────────────────────────────────────
-function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, overBudget, catData, maxCat, monthLabel, onEdit, onSetBudget, getCatColor }: {
+function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, overBudget, catData, maxCat, monthLabel, onEdit, onSetBudget, getCatColor, balance, onSetBalance }: {
   expenses: Database['public']['Tables']['expenses']['Row'][];
   monthlyTotal: number; budget: number | null; remaining: number | null;
   usageRate: number; overBudget: boolean;
@@ -1084,6 +1125,8 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
   onEdit: (item: Database['public']['Tables']['expenses']['Row']) => void;
   onSetBudget: () => void;
   getCatColor: (name: string | null | undefined) => string;
+  balance: number | null;
+  onSetBalance: () => void;
 }) {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -1108,6 +1151,37 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
           <TouchableOpacity onPress={onSetBudget}>
             <Text style={{ marginTop: 10, color: COLORS.primary, fontWeight: '600', fontSize: 14 }}>＋ 月予算を設定する</Text>
           </TouchableOpacity>
+        )}
+      </View>
+
+      {/* 口座残高（手動入力）: 残高 − 今月支出 = 残額 */}
+      <View style={styles.card}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.cardTitle}>口座残高</Text>
+          <TouchableOpacity onPress={onSetBalance} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ color: COLORS.primary, fontWeight: '600', fontSize: 13 }}>
+              {balance != null ? '編集' : '＋ 残高を入力'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {balance != null ? (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 }}>
+            <View>
+              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>残高</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.gray700 }}>¥{balance.toLocaleString()}</Text>
+            </View>
+            <Text style={{ fontSize: 13, color: COLORS.gray400 }}>− 今月支出 ¥{monthlyTotal.toLocaleString()}</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>残額</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: (balance - monthlyTotal) < 0 ? COLORS.danger : COLORS.gray900 }}>
+                ¥{(balance - monthlyTotal).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={{ marginTop: 6, fontSize: 12, color: COLORS.gray400 }}>
+            口座残高を入力すると「残高 − 今月支出」で残額を表示します（手動入力）
+          </Text>
         )}
       </View>
 

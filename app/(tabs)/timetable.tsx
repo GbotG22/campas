@@ -189,6 +189,7 @@ export default function TimetableScreen() {
         { text: '△ 遅刻', onPress: () => record(slot.id, todayStr, 'late')    },
         { text: '✗ 欠席', onPress: () => record(slot.id, todayStr, 'absent')  },
         { text: '↩ 早退', onPress: () => record(slot.id, todayStr, 'early_leave') },
+        { text: '◎ 公欠', onPress: () => record(slot.id, todayStr, 'official_absent') },
         ...(current ? [{ text: '記録を削除', style: 'destructive' as const, onPress: () => record(slot.id, todayStr, 'absent') }] : []),
         { text: 'キャンセル', style: 'cancel' },
       ],
