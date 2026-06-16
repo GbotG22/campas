@@ -793,6 +793,7 @@ export type Database = {
           note:           string | null;
           payment_method: 'cash' | 'credit' | 'other';
           credit_card_id: string | null;
+          reflect_to_balance: boolean;
           created_at:     string;
           updated_at:     string;
         };
@@ -806,6 +807,7 @@ export type Database = {
           note?:           string | null;
           payment_method?: 'cash' | 'credit' | 'other';
           credit_card_id?: string | null;
+          reflect_to_balance?: boolean;
           created_at?:     string;
           updated_at?:     string;
         };
@@ -819,6 +821,7 @@ export type Database = {
           note?:           string | null;
           payment_method?: 'cash' | 'credit' | 'other';
           credit_card_id?: string | null;
+          reflect_to_balance?: boolean;
           created_at?:     string;
           updated_at?:     string;
         };

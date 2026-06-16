@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView,
-  Modal, Platform, ScrollView, StyleSheet, Text,
+  Modal, Platform, ScrollView, StyleSheet, Switch, Text,
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -208,6 +208,7 @@ export default function MoneyScreen() {
   const [expMemo, setExpMemo]             = useState('');
   const [expPayMethod, setExpPayMethod]   = useState<'cash'|'credit'|'other'>('cash');
   const [expCardId, setExpCardId]         = useState<string | null>(null);
+  const [expReflect, setExpReflect]       = useState(false); // 口座残高から引くか（初期OFF）
   const [expSaving, setExpSaving]         = useState(false);
 
   function openAddExpModal() {
@@ -218,6 +219,7 @@ export default function MoneyScreen() {
     setExpTitle(''); setExpAmount(''); setExpCat('食費');
     setExpDate(defaultDate); setExpMemo('');
     setExpPayMethod('cash'); setExpCardId(null);
+    setExpReflect(false);
     setAddExpModal(true);
   }
 
@@ -231,6 +233,7 @@ export default function MoneyScreen() {
     const pm = exp.payment_method as string;
     setExpPayMethod(pm === 'cash' ? 'cash' : pm === 'credit' ? 'credit' : 'other');
     setExpCardId(exp.credit_card_id ?? null);
+    setExpReflect(exp.reflect_to_balance ?? false);
     setAddExpModal(true);
   }
 
@@ -247,6 +250,7 @@ export default function MoneyScreen() {
       title: expTitle.trim(), amount, category: expCat, paid_at: expDate, note: expMemo.trim() || null,
       payment_method: expPayMethod,
       credit_card_id: expPayMethod === 'credit' ? expCardId : null,
+      reflect_to_balance: expReflect,
     };
     const err = editingExp
       ? await updateExpense(editingExp.id, payload)
@@ -739,6 +743,17 @@ export default function MoneyScreen() {
                   </ScrollView>
                 </>
               )}
+              {/* 口座残高から引くか（初期OFF。サブスク/家賃/引き落とし/PayPayチャージ/ATM引き出し等でON） */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: SPACING.sm, marginBottom: 4 }}>
+                <View style={{ flex: 1, marginRight: 12 }}>
+                  <Text style={styles.inputLabel}>口座残高から引く</Text>
+                  <Text style={{ fontSize: 11, color: COLORS.gray400 }}>
+                    口座引き落とし・サブスク・PayPayチャージ・ATM引き出しなど、残高から減らしたい支出のみONにしてください
+                  </Text>
+                </View>
+                <Switch value={expReflect} onValueChange={setExpReflect} />
+              </View>
+
               <Text style={styles.inputLabel}>メモ（任意）</Text>
               <TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} placeholder="例: 友達とランチ" value={expMemo} onChangeText={setExpMemo} multiline />
               {editingExp && (
@@ -1128,6 +1143,10 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
   balance: number | null;
   onSetBalance: () => void;
 }) {
+  // 口座残高に反映する支出（今月分・reflect_to_balance=ON）の合計
+  const reflectedTotal = expenses
+    .filter(e => e.reflect_to_balance)
+    .reduce((s, e) => s + e.amount, 0);
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
       <View style={styles.summaryCard}>
@@ -1154,7 +1173,7 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
         )}
       </View>
 
-      {/* 口座残高（手動入力）: 残高 − 今月支出 = 残額 */}
+      {/* 口座残高（手動入力）: 残高 − 反映対象支出（今月） = 使用後残高 */}
       <View style={styles.card}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.cardTitle}>口座残高</Text>
@@ -1165,22 +1184,29 @@ function ExpensesTab({ expenses, monthlyTotal, budget, remaining, usageRate, ove
           </TouchableOpacity>
         </View>
         {balance != null ? (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 }}>
-            <View>
-              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>残高</Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.gray700 }}>¥{balance.toLocaleString()}</Text>
+          <View style={{ marginTop: 10, gap: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 13, color: COLORS.gray500 }}>口座残高</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.gray700 }}>¥{balance.toLocaleString()}</Text>
             </View>
-            <Text style={{ fontSize: 13, color: COLORS.gray400 }}>− 今月支出 ¥{monthlyTotal.toLocaleString()}</Text>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ fontSize: 11, color: COLORS.gray400 }}>残額</Text>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: (balance - monthlyTotal) < 0 ? COLORS.danger : COLORS.gray900 }}>
-                ¥{(balance - monthlyTotal).toLocaleString()}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 13, color: COLORS.gray500 }}>反映対象支出（今月）</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.gray700 }}>−¥{reflectedTotal.toLocaleString()}</Text>
+            </View>
+            <View style={{ height: 1, backgroundColor: COLORS.gray100, marginVertical: 2 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 13, color: COLORS.gray500 }}>使用後残高</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: (balance - reflectedTotal) < 0 ? COLORS.danger : COLORS.gray900 }}>
+                ¥{(balance - reflectedTotal).toLocaleString()}
               </Text>
             </View>
+            <Text style={{ fontSize: 11, color: COLORS.gray400, marginTop: 2 }}>
+              ※ 支出ごとの「口座残高から引く」がONのものだけ反映（現金・カード払いは含みません）
+            </Text>
           </View>
         ) : (
           <Text style={{ marginTop: 6, fontSize: 12, color: COLORS.gray400 }}>
-            口座残高を入力すると「残高 − 今月支出」で残額を表示します（手動入力）
+            口座残高を入力し、各支出の「口座残高から引く」をONにすると、使用後残高を表示します（手動入力）
           </Text>
         )}
       </View>
