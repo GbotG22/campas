@@ -111,13 +111,30 @@ export function useSemesters() {
   };
 
   // ── 既存スロットをこの学期に一括割り当て ────────────────────
+  // 移行先で既に埋まっている (曜日,時限) には移行しない（同セル重複コマを作らない）
   const assignUnassignedSlots = async (semesterId: string) => {
     if (!user) return;
+    // 移行先（対象学期）で既に使われている (曜日,時限)
+    const { data: existing } = await supabase
+      .from('timetable_slots')
+      .select('day_of_week,period')
+      .eq('user_id', user.id)
+      .eq('semester_id', semesterId);
+    const occupied = new Set((existing ?? []).map(s => `${s.day_of_week}_${s.period}`));
+
+    // 未割り当て(null)スロットのうち、移行先が空いているコマだけ移行
+    const { data: nulls } = await supabase
+      .from('timetable_slots')
+      .select('id,day_of_week,period')
+      .eq('user_id', user.id)
+      .is('semester_id', null);
+    const migratable = (nulls ?? []).filter(s => !occupied.has(`${s.day_of_week}_${s.period}`));
+    if (migratable.length === 0) return;
+
     await supabase
       .from('timetable_slots')
       .update({ semester_id: semesterId })
-      .eq('user_id', user.id)
-      .is('semester_id', null);
+      .in('id', migratable.map(s => s.id));
   };
 
   return {

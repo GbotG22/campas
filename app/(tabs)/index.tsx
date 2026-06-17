@@ -408,7 +408,7 @@ export default function HomeScreen() {
             <MoneyCell label="支出"     value={monthExp}    color={COLORS.danger}  prefix="¥" />
             <MoneyCell label="サブスク" value={subTotal}    color={COLORS.warning} prefix="¥" />
             <MoneyCell
-              label="残高"
+              label="収支"
               value={Math.abs(monthBalance)}
               color={monthBalance >= 0 ? COLORS.success : COLORS.danger}
               prefix={monthBalance >= 0 ? '+¥' : '-¥'}

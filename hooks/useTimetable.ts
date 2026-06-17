@@ -74,6 +74,12 @@ export function useTimetable(semesterId?: string | null) {
 
   const addSlot = async (item: Omit<InsertSlot, 'user_id'>) => {
     if (!user) return null;
+    // 重複防止: 同一学期(現フィルタ)・同一(曜日,時限)に既存があれば
+    // 新規作成せず上書き更新する（同セル重複コマを作らない）
+    const dupe = slots.find(s => s.day_of_week === item.day_of_week && s.period === item.period);
+    if (dupe) {
+      return updateSlot(dupe.id, { ...item, semester_id: semesterId ?? null });
+    }
     const { data, error } = await supabase
       .from('timetable_slots')
       .insert({ ...item, user_id: user.id, semester_id: semesterId ?? null })
