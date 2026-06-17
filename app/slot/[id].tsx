@@ -453,6 +453,13 @@ export default function SlotDetailScreen() {
               })}
             </ScrollView>
             <InlineDatePicker label="日付" value={evtDate} onChange={setEvtDate} />
+            {evtType === 'makeup' && (
+              <View style={styles.makeupNote}>
+                <Text style={styles.makeupNoteText}>
+                  補講は現在、元の授業と同じ時限として登録されます。別の時限への補講登録は今後のアップデートで対応予定です。
+                </Text>
+              </View>
+            )}
             <FormInput label="タイトル *" value={evtTitle} onChangeText={setEvtTitle} placeholder="例：第3回 小テスト" />
             <FormInput label="備考（任意）" value={evtNote} onChangeText={setEvtNote} placeholder="例：教科書1〜3章" />
           </ScrollView>
@@ -647,6 +654,8 @@ const styles = StyleSheet.create({
   // イベントタイプチップ
   evtTypeChip:    { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: COLORS.gray200, backgroundColor: COLORS.white },
   evtTypeChipText:{ fontSize: 13, fontWeight: '600', color: COLORS.gray900 },
+  makeupNote:     { backgroundColor: COLORS.gray100, borderRadius: 10, padding: 12, marginBottom: 12 },
+  makeupNoteText: { fontSize: 12, lineHeight: 18, color: COLORS.gray600 },
 
   // 回数ボタン
   sessionNumRow:        { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 16 },
