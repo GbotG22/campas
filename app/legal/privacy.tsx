@@ -46,7 +46,7 @@ export default function PrivacyScreen() {
         </Section>
 
         <Section title="6. Googleカレンダー連携">
-          {`ユーザーがGoogleカレンダー連携を有効にした場合、本アプリはGoogle Calendar APIを通じて、ユーザーがアクセスできるカレンダーの予定を読み取ります。利用する権限は読み取り専用（https://www.googleapis.com/auth/calendar.readonly）です。\n\n取得したGoogleカレンダー情報は、スケジュール画面に予定を表示する目的にのみ使用します。Googleユーザーデータを広告配信、第三者への販売、またはAIモデルの学習目的で使用することはありません。`}
+          {`ユーザーがGoogleカレンダー連携を有効にした場合、本アプリはGoogle Calendar APIを通じて、ユーザーのGoogleカレンダー予定を読み取ります。利用する権限は読み取り専用（https://www.googleapis.com/auth/calendar.events.readonly）です。\n\n取得したGoogleカレンダー情報は、スケジュール画面に予定を表示する目的にのみ使用します。Googleユーザーデータを広告配信、第三者への販売、またはAIモデルの学習目的で使用することはありません。本アプリによるGoogleユーザーデータの利用および他のアプリへの転送は、Google API Services User Data Policy（Limited Useを含む）に準拠します。`}
         </Section>
 
         <Section title="7. プッシュ通知">

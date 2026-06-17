@@ -123,7 +123,7 @@ export function useGoogleCalendar() {
       webClientId: WEB_CLIENT_ID,
       // clientId: プラットフォーム固有 ID が undefined の場合のフォールバック
       clientId:    WEB_CLIENT_ID,
-      scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+      scopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
     },
     // iOS Dev Build では reversed client ID スキームをネイティブ URI として明示指定
     // makeRedirectUri は Standalone/Bare 環境で native オプションを優先する
