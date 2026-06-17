@@ -361,16 +361,17 @@ export default function TimetableScreen() {
                           (isCancel || isMakeup) && styles.cellSubjectWithBadge,
                         ]}
                         numberOfLines={2}
+                        maxFontSizeMultiplier={1.1}
                       >
                         {slot.subject_name}
                       </Text>
-                      {slot.room         && <Text style={styles.cellRoom}    numberOfLines={1}>📍{slot.room}</Text>}
-                      {slot.teacher_name && <Text style={styles.cellTeacher} numberOfLines={1}>👤{slot.teacher_name}</Text>}
+                      {slot.room         && <Text style={styles.cellRoom}    numberOfLines={1} maxFontSizeMultiplier={1.1}>📍{slot.room}</Text>}
+                      {slot.teacher_name && <Text style={styles.cellTeacher} numberOfLines={1} maxFontSizeMultiplier={1.1}>👤{slot.teacher_name}</Text>}
 
                       {/* 出席率チップ */}
                       {stats && stats.total > 0 && (
                         <View style={[styles.rateChip, { backgroundColor: stats.isWarning ? COLORS.dangerLight : COLORS.successLight }]}>
-                          <Text style={[styles.rateChipText, { color: stats.isWarning ? COLORS.danger : COLORS.success }]}>
+                          <Text style={[styles.rateChipText, { color: stats.isWarning ? COLORS.danger : COLORS.success }]} maxFontSizeMultiplier={1.1}>
                             {stats.rate}%
                           </Text>
                         </View>
@@ -600,7 +601,7 @@ const styles = StyleSheet.create({
   periodTime:  { fontSize: 10, color: COLORS.gray400, marginTop: 1 },
 
   // セル
-  cell:      { marginHorizontal: 1, borderRadius: RADIUS.sm, padding: 5, borderWidth: 1, borderColor: COLORS.gray200, position: 'relative' },
+  cell:      { marginHorizontal: 1, borderRadius: RADIUS.sm, padding: 5, borderWidth: 1, borderColor: COLORS.gray200, position: 'relative', overflow: 'hidden' },
   emptyCell: { backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   todayCell: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary + '40' },
   addIcon:   { fontSize: 20, color: COLORS.gray300 },
