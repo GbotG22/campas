@@ -54,7 +54,7 @@
 <body>
   <header>
     <h1>プライバシーポリシー</h1>
-    <p>最終更新日：2025年5月27日</p>
+    <p>最終更新日：2026年6月17日</p>
   </header>
 
   <main>
@@ -65,6 +65,7 @@
 ・メールアドレス（アカウント作成時）
 ・時間割・授業情報
 ・予定・課題・イベント
+・Googleカレンダーの予定情報（Googleカレンダー連携を有効にした場合）
 ・バイトシフト・収支情報
 ・出席記録</p>
     </div>
@@ -76,12 +77,15 @@
 ・本アプリのサービス提供・機能の動作
 ・ユーザー認証とデータの同期
 ・プッシュ通知（締切・シフトのリマインダー）
+・Googleカレンダーの予定を本アプリのスケジュール画面に表示すること
 ・アプリの改善・デバッグ</p>
     </div>
 
     <div class="section">
       <h2>3. 情報の保管</h2>
-      <p>ユーザーデータはSupabase（データベースサービス）のサーバーに暗号化して保存されます。SupabaseのセキュリティI基準（SOC 2 Type 2）に準拠しています。</p>
+      <p>ユーザーデータはSupabase（データベースサービス）のサーバーに暗号化して保存されます。Supabaseのセキュリティ基準（SOC 2 Type 2）に準拠しています。
+
+Googleカレンダー連携で取得した予定情報は、本アプリ内で表示するために使用します。Googleカレンダーの予定本文はCamplyのサーバーには保存しません。認証トークンは端末の安全な保存領域に保存され、連携解除時に削除されます。</p>
     </div>
 
     <div class="section">
@@ -103,31 +107,43 @@
 　<a href="https://www.revenuecat.com/privacy">https://www.revenuecat.com/privacy</a>
 
 ・Anthropic Claude（AIアドバイス機能、任意設定）
-　<a href="https://www.anthropic.com/privacy">https://www.anthropic.com/privacy</a></p>
+　<a href="https://www.anthropic.com/privacy">https://www.anthropic.com/privacy</a>
+
+・Google Calendar API（Googleカレンダー連携、任意設定）
+　<a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a></p>
     </div>
 
     <div class="section">
-      <h2>6. プッシュ通知</h2>
+      <h2>6. Googleカレンダー連携</h2>
+      <p>ユーザーがGoogleカレンダー連携を有効にした場合、本アプリはGoogle Calendar APIを通じて、ユーザーがアクセスできるカレンダーの予定を読み取ります。利用する権限は読み取り専用（https://www.googleapis.com/auth/calendar.readonly）です。
+
+取得したGoogleカレンダー情報は、スケジュール画面に予定を表示する目的にのみ使用します。Googleユーザーデータを広告配信、第三者への販売、またはAIモデルの学習目的で使用することはありません。</p>
+    </div>
+
+    <div class="section">
+      <h2>7. プッシュ通知</h2>
       <p>本アプリはプッシュ通知を送信することがあります。通知はデバイス内でのみ処理されます（ローカル通知）。通知の設定はOSの設定アプリから変更できます。</p>
     </div>
 
     <div class="section">
-      <h2>7. データの削除</h2>
-      <p>アカウントを削除すると、関連するデータはすべて削除されます。削除のご要望は設定画面のメールアドレスまでご連絡ください。</p>
+      <h2>8. データの削除</h2>
+      <p>アカウントを削除すると、関連するデータはすべて削除されます。削除のご要望は設定画面のメールアドレスまでご連絡ください。
+
+Googleカレンダー連携はアプリ内の連携解除操作、またはGoogleアカウントの「サードパーティ製アプリとサービス」設定から解除できます。連携を解除すると、本アプリに保存されたGoogle認証トークンは削除されます。</p>
     </div>
 
     <div class="section">
-      <h2>8. 未成年者</h2>
+      <h2>9. 未成年者</h2>
       <p>本アプリは13歳以上を対象としています。13歳未満のお子様の個人情報を意図的に収集することはありません。</p>
     </div>
 
     <div class="section">
-      <h2>9. ポリシーの変更</h2>
+      <h2>10. ポリシーの変更</h2>
       <p>本ポリシーは予告なく変更されることがあります。変更後も継続してご利用いただいた場合、変更に同意したものとみなします。</p>
     </div>
 
     <div class="section">
-      <h2>10. お問い合わせ</h2>
+      <h2>11. お問い合わせ</h2>
       <p>プライバシーに関するご質問・ご要望は以下までご連絡ください。
 
 メール：<a href="mailto:Kazukioikawa14@icloud.com">Kazukioikawa14@icloud.com</a></p>
