@@ -589,8 +589,8 @@ const styles = StyleSheet.create({
   grid: { paddingHorizontal: SPACING.xs + 2, paddingBottom: SPACING.md },
   row:  { flexDirection: 'row', marginBottom: 2 },
 
-  // 曜日ヘッダー
-  dayHeader:       { alignItems: 'center', paddingVertical: 6 },
+  // 曜日ヘッダー（セルと同じ marginHorizontal:1 で列を揃える）
+  dayHeader:       { alignItems: 'center', paddingVertical: 6, marginHorizontal: 1 },
   dayHeaderText:   { fontSize: 13, fontWeight: '700', color: COLORS.gray600 },
   todayHeader:     { backgroundColor: COLORS.primary + '18', borderRadius: RADIUS.sm },
   todayHeaderText: { color: COLORS.primary },
